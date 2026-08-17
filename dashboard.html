@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Growth Radar · HISPAM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --hm-50:#f1f4fd; --hm-100:#dee5fb; --hm-200:#c5d4f8; --hm-300:#9db8f3;
+    --hm-400:#6f93eb; --hm-500:#496be3; --hm-600:#3851d8; --hm-700:#2f3fc6;
+    --hm-800:#2c35a1; --hm-900:#29317f; --hm-950:#1d204e;
+
+    --grey-50:#f5f6f8; --grey-100:#eeeef1; --grey-150:#E9E9ED; --grey-200:#dfe0e6;
+    --grey-300:#cbcdd6; --grey-400:#b5b6c4; --grey-600:#8d8c9f; --grey-700:#79788a;
+    --grey-800:#636271; --grey-950:#303036;
+
+    --green-500:#4ed364; --green-700:#249637;
+    --yellow-500:#f0b623;
+    --text-default:#303036; --text-lighter:#636271;
+    --bg-page:#f5f6f8;
+    --radius-s:4px; --radius-m:8px; --radius-l:16px;
+    --shadow-4dp:-1px 4px 8px 0px rgba(233,233,244,1);
+    --shadow-8dp:-1px 8px 16px 0px rgba(170,170,186,0.45);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Roboto',Arial,sans-serif;
+    background:var(--bg-page);
+    color:var(--text-default);
+    letter-spacing:0.2px;
+    line-height:1.4;
+    min-height:100vh;
+  }
+  @font-face{
+    font-family:'Roboto';
+    src:local('Roboto');
+  }
+
+  .page{ max-width:1320px; margin:0 auto; padding:32px 24px 64px; }
+
+  /* ---------- HEADER ---------- */
+  .header{
+    display:flex; align-items:flex-end; justify-content:space-between; gap:24px;
+    margin-bottom:28px; flex-wrap:wrap;
+  }
+  .header .brand{ display:flex; align-items:center; gap:14px; }
+  .brand-mark{
+    width:44px; height:44px; border-radius:var(--radius-m);
+    background:linear-gradient(135deg,var(--hm-600),var(--hm-900));
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:var(--shadow-4dp);
+  }
+  .brand-mark svg{ width:24px; height:24px; }
+  .header h1{
+    font-size:24px; font-weight:600; margin:0; color:var(--hm-950);
+  }
+  .header .eyebrow{
+    font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1.2px;
+    color:var(--hm-500); margin:0 0 2px;
+  }
+  .header .meta{
+    font-size:13px; color:var(--text-lighter); text-align:right;
+  }
+  .header .meta strong{ color:var(--hm-800); }
+
+  /* ---------- FILTER BAR ---------- */
+  .filterbar{
+    background:#fff; border-radius:var(--radius-l);
+    box-shadow:var(--shadow-4dp);
+    padding:20px 24px; margin-bottom:28px;
+    display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;
+    position:relative;
+  }
+  .filter-field{ display:flex; flex-direction:column; gap:6px; min-width:170px; flex:1 1 170px; position:relative; }
+  .filter-field label{
+    font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.6px;
+    color:var(--grey-800);
+  }
+  .filter-field input[type="date"]{
+    border:1px solid var(--grey-200); border-radius:var(--radius-s);
+    padding:9px 10px; font-size:14px; font-family:inherit; color:var(--text-default);
+    background:#fff; height:38px;
+  }
+  .filter-field input[type="date"]:focus{ outline:2px solid var(--hm-300); border-color:var(--hm-400); }
+
+  .ms-toggle{
+    border:1px solid var(--grey-200); border-radius:var(--radius-s);
+    padding:9px 10px; font-size:14px; font-family:inherit; color:var(--text-default);
+    background:#fff; height:38px; text-align:left; cursor:pointer;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    width:100%;
+  }
+  .ms-toggle:focus-visible{ outline:2px solid var(--hm-400); }
+  .ms-toggle .count-chip{
+    background:var(--hm-100); color:var(--hm-800); font-size:11px; font-weight:600;
+    border-radius:999px; padding:2px 8px; white-space:nowrap;
+  }
+  .ms-toggle .chev{ color:var(--grey-600); font-size:10px; flex:0 0 auto; }
+
+  .ms-panel{
+    display:none; position:absolute; top:calc(100% + 6px); left:0; z-index:40;
+    background:#fff; border-radius:var(--radius-m); box-shadow:var(--shadow-8dp);
+    border:1px solid var(--grey-150); width:280px; max-height:340px;
+    flex-direction:column; overflow:hidden;
+  }
+  .ms-panel.open{ display:flex; }
+  .ms-search{
+    padding:10px; border-bottom:1px solid var(--grey-100);
+  }
+  .ms-search input{
+    width:100%; border:1px solid var(--grey-200); border-radius:var(--radius-s);
+    padding:7px 9px; font-size:13px; font-family:inherit;
+  }
+  .ms-actions{
+    display:flex; gap:8px; padding:8px 10px; border-bottom:1px solid var(--grey-100);
+  }
+  .ms-actions button{
+    border:none; background:var(--hm-50); color:var(--hm-700); font-size:11px; font-weight:600;
+    padding:5px 10px; border-radius:999px; cursor:pointer; font-family:inherit;
+  }
+  .ms-actions button:hover{ background:var(--hm-100); }
+  .ms-list{ overflow-y:auto; padding:6px 4px; }
+  .ms-option{
+    display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:var(--radius-s);
+    cursor:pointer; font-size:13px;
+  }
+  .ms-option:hover{ background:var(--grey-50); }
+  .ms-option input{ accent-color:var(--hm-600); width:15px; height:15px; flex:0 0 auto; }
+  .ms-option span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ms-empty{ padding:16px; text-align:center; font-size:12px; color:var(--grey-600); }
+
+  .filter-reset{
+    flex:0 0 auto; height:38px; border:none; border-radius:var(--radius-s);
+    background:var(--grey-100); color:var(--grey-800); font-weight:600; font-size:13px;
+    padding:0 16px; cursor:pointer; font-family:inherit; white-space:nowrap;
+  }
+  .filter-reset:hover{ background:var(--grey-200); }
+
+  /* ---------- KPI ROW ---------- */
+  .kpi-row{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px;
+  }
+  .kpi-card{
+    background:#fff; border-radius:var(--radius-l); padding:20px 22px;
+    box-shadow:var(--shadow-4dp); position:relative; overflow:hidden;
+    border-left:4px solid var(--stage-color, var(--hm-500));
+  }
+  .kpi-card .kpi-label{
+    font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.6px;
+    color:var(--grey-700); margin:0 0 8px; display:flex; align-items:center; gap:8px;
+  }
+  .kpi-dot{ width:8px; height:8px; border-radius:50%; background:var(--stage-color, var(--hm-500)); flex:0 0 auto; }
+  .kpi-value{
+    font-size:32px; font-weight:600; color:var(--hm-950); line-height:1.2; margin:0;
+    font-variant-numeric:tabular-nums;
+  }
+  .kpi-sub{ font-size:12px; color:var(--text-lighter); margin-top:4px; }
+  .kpi-goal{
+    font-size:12px; font-weight:600; margin-top:8px; padding-top:8px;
+    border-top:1px solid var(--grey-100); display:flex; align-items:center; gap:6px;
+  }
+  .kpi-goal.good{ color:var(--green-700); }
+  .kpi-goal.bad{ color:#c0392b; }
+  .kpi-goal.neutral{ color:var(--grey-600); font-weight:400; font-style:italic; }
+  .kpi-goal .goal-arrow{ font-size:13px; }
+
+  /* ---------- FUNNEL STRIP ---------- */
+  .funnel-strip{
+    display:flex; align-items:center; gap:10px; margin:-8px 0 24px; padding:0 4px;
+    font-size:12px; color:var(--grey-700); flex-wrap:wrap;
+  }
+  .section-title{
+    font-size:16px; font-weight:600; color:var(--hm-950); margin:36px 0 16px;
+    padding-top:4px; border-top:1px solid var(--grey-150); padding-top:24px;
+  }
+  .funnel-strip .fs-item{ display:flex; align-items:center; gap:6px; }
+  .funnel-strip .fs-dot{ width:9px; height:9px; border-radius:50%; }
+  .funnel-strip .fs-arrow{ color:var(--grey-400); }
+
+  /* ---------- CHARTS ---------- */
+  .charts{ display:flex; flex-direction:column; gap:20px; }
+  .chart-card{
+    background:#fff; border-radius:var(--radius-l); box-shadow:var(--shadow-4dp);
+    padding:22px 24px 12px;
+  }
+  .chart-card-header{
+    display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px;
+  }
+  .chart-card-title{
+    font-size:15px; font-weight:600; color:var(--hm-950); margin:0;
+    display:flex; align-items:center; gap:8px;
+  }
+  .chart-card-title .title-dot{ width:10px; height:10px; border-radius:50%; }
+  .chart-card-sub{ font-size:12px; color:var(--text-lighter); margin:0; }
+  .chart-wrap{ position:relative; height:250px; }
+
+  .empty-state{
+    text-align:center; padding:60px 20px; color:var(--grey-600); font-size:14px;
+  }
+
+  footer.note{
+    margin-top:24px; font-size:12px; color:var(--grey-600); text-align:center;
+  }
+
+  /* ---------- LOADING / ERROR / STATUS ---------- */
+  .status-row{
+    display:flex; align-items:center; gap:10px; justify-content:flex-end; margin-top:4px;
+  }
+  .status-row .refresh-btn{
+    border:none; background:var(--hm-50); color:var(--hm-700); font-size:11px; font-weight:600;
+    padding:5px 12px; border-radius:999px; cursor:pointer; font-family:inherit;
+    display:flex; align-items:center; gap:6px;
+  }
+  .status-row .refresh-btn:hover{ background:var(--hm-100); }
+  .status-row .refresh-btn.loading svg{ animation:spin 0.8s linear infinite; }
+  @keyframes spin{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+
+  .loading-overlay{
+    position:fixed; inset:0; background:rgba(245,246,248,0.92); z-index:200;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+  }
+  .loading-overlay .spinner{
+    width:36px; height:36px; border-radius:50%;
+    border:4px solid var(--hm-100); border-top-color:var(--hm-600);
+    animation:spin 0.8s linear infinite;
+  }
+  .loading-overlay p{ color:var(--hm-800); font-size:14px; font-weight:600; }
+
+  .error-banner{
+    display:none; background:#fde3e3; border:1px solid #f8a9a9; color:#7b2121;
+    border-radius:var(--radius-m); padding:14px 18px; margin-bottom:20px; font-size:13px;
+    line-height:1.5;
+  }
+  .error-banner.show{ display:block; }
+  .error-banner strong{ display:block; margin-bottom:4px; }
+
+  @media (max-width:900px){
+    .kpi-row{ grid-template-columns:repeat(2,1fr); }
+  }
+  @media (max-width:560px){
+    .kpi-row{ grid-template-columns:1fr; }
+    .header{ align-items:flex-start; }
+    .header .meta{ text-align:left; }
+  }
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <p>Carregando dados da planilha…</p>
+</div>
+<div class="page">
+
+  <div class="header">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 20L9 11L14 16L21 5" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="21" cy="5" r="2.2" fill="white"/>
+        </svg>
+      </div>
+      <div>
+        <p class="eyebrow">Growth · Lead Analysis (HISPAM)</p>
+        <h1>Growth Radar — HISPAM</h1>
+      </div>
+    </div>
+    <div class="meta">
+      <div><strong id="meta-total-rows">–</strong> leads HISPAM na base</div>
+      <div>Período dos dados: <strong id="meta-date-range">–</strong></div>
+      <div class="status-row">
+        <span id="last-updated-label" style="font-size:12px;color:var(--text-lighter);">–</span>
+        <button class="refresh-btn" id="btn-refresh">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+            <path d="M21 3v6h-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Recarregar dados
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="error-banner" id="error-banner">
+    <strong>Não consegui carregar os dados da planilha.</strong>
+    <span id="error-detail">Verifique se a aba ainda está publicada (Arquivo → Compartilhar → Publicar na Web) e tente recarregar.</span>
+  </div>
+
+  <div class="filterbar" id="filterbar">
+    <div class="filter-field" id="ff-country">
+      <label>Main Country</label>
+      <button class="ms-toggle" data-ms="country"><span class="ms-toggle-label">Todos</span><span class="count-chip" id="chip-country"></span></button>
+      <div class="ms-panel" id="panel-country"></div>
+    </div>
+
+    <div class="filter-field">
+      <label>Starting Date</label>
+      <input type="date" id="input-start-date">
+    </div>
+
+    <div class="filter-field">
+      <label>End Date</label>
+      <input type="date" id="input-end-date">
+    </div>
+
+    <div class="filter-field" id="ff-source">
+      <label>Original Traffic Source</label>
+      <button class="ms-toggle" data-ms="source"><span class="ms-toggle-label">Todos</span><span class="count-chip" id="chip-source"></span></button>
+      <div class="ms-panel" id="panel-source"></div>
+    </div>
+
+    <div class="filter-field" id="ff-drill1">
+      <label>Traffic Source Drill-Down 1</label>
+      <button class="ms-toggle" data-ms="drill1"><span class="ms-toggle-label">Todos</span><span class="count-chip" id="chip-drill1"></span></button>
+      <div class="ms-panel" id="panel-drill1"></div>
+    </div>
+
+    <button class="filter-reset" id="btn-reset">Limpar filtros</button>
+  </div>
+
+  <div class="funnel-strip">
+    <div class="fs-item"><span class="fs-dot" style="background:#9db8f3"></span> BoFu Lead — todo lead que entra no funil</div>
+    <span class="fs-arrow">→</span>
+    <div class="fs-item"><span class="fs-dot" style="background:#496be3"></span> Demo — Lead Status preenchido</div>
+    <span class="fs-arrow">→</span>
+    <div class="fs-item"><span class="fs-dot" style="background:#1d204e"></span> Validated Demo — Lead Status = "Validated"</div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card" style="--stage-color:#9db8f3">
+      <p class="kpi-label"><span class="kpi-dot"></span>BoFu Leads</p>
+      <p class="kpi-value" id="kpi-bofu">–</p>
+      <p class="kpi-sub">Por Create Date, no período filtrado</p>
+    </div>
+    <div class="kpi-card" style="--stage-color:#496be3">
+      <p class="kpi-label"><span class="kpi-dot"></span>Demos</p>
+      <p class="kpi-value" id="kpi-demos">–</p>
+      <p class="kpi-sub" id="kpi-demos-pct">–</p>
+    </div>
+    <div class="kpi-card" style="--stage-color:#1d204e">
+      <p class="kpi-label"><span class="kpi-dot"></span>Validated Demos</p>
+      <p class="kpi-value" id="kpi-validated">–</p>
+      <p class="kpi-sub" id="kpi-validated-pct">–</p>
+    </div>
+    <div class="kpi-card" style="--stage-color:#28c040">
+      <p class="kpi-label"><span class="kpi-dot"></span>Amount</p>
+      <p class="kpi-value" id="kpi-amount">–</p>
+      <p class="kpi-sub">Por First Meeting Date, no período filtrado</p>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <p class="chart-card-title"><span class="title-dot" style="background:#9db8f3"></span>Evolução semanal — BoFu Leads</p>
+        <p class="chart-card-sub">Contagem de leads criados, por semana</p>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-bofu"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <p class="chart-card-title"><span class="title-dot" style="background:#496be3"></span>Evolução semanal — Demos</p>
+        <p class="chart-card-sub">Leads com Lead Status preenchido (qualquer valor), contabilizados pela First Meeting Date</p>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-demos"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <p class="chart-card-title"><span class="title-dot" style="background:#1d204e"></span>Evolução semanal — Validated Demos</p>
+        <p class="chart-card-sub">Lead Status = "Validated", contabilizados pela First Meeting Date</p>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-validated"></canvas></div>
+    </div>
+  </div>
+
+  <h2 class="section-title">Investimento em Mídia Paga</h2>
+
+  <div class="kpi-row" id="spend-kpi-row">
+    <div class="kpi-card" style="--stage-color:#28c040">
+      <p class="kpi-label"><span class="kpi-dot"></span>Spend Total</p>
+      <p class="kpi-value" id="kpi-spend">–</p>
+      <p class="kpi-sub">Google Ads + Meta Ads + LinkedIn Ads (USD)</p>
+    </div>
+    <div class="kpi-card" style="--stage-color:#9db8f3">
+      <p class="kpi-label"><span class="kpi-dot"></span>CPL (Custo por Lead)</p>
+      <p class="kpi-value" id="kpi-cpl">–</p>
+      <p class="kpi-sub">Spend ÷ BoFu Leads</p>
+      <p class="kpi-goal" id="goal-cpl"></p>
+    </div>
+    <div class="kpi-card" style="--stage-color:#496be3">
+      <p class="kpi-label"><span class="kpi-dot"></span>CPD (Custo por Demo)</p>
+      <p class="kpi-value" id="kpi-cpd">–</p>
+      <p class="kpi-sub">Spend ÷ Demos</p>
+      <p class="kpi-goal" id="goal-cpd"></p>
+    </div>
+    <div class="kpi-card" style="--stage-color:#1d204e">
+      <p class="kpi-label"><span class="kpi-dot"></span>Custo por Validated Demo</p>
+      <p class="kpi-value" id="kpi-cpvd">–</p>
+      <p class="kpi-sub">Spend ÷ Validated Demos</p>
+      <p class="kpi-goal" id="goal-cpvd"></p>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <p class="chart-card-title"><span class="title-dot" style="background:#de920c"></span>Evolução semanal — Spend por plataforma</p>
+        <p class="chart-card-sub">Google Ads, Meta Ads e LinkedIn Ads (USD/semana)</p>
+      </div>
+      <div class="chart-wrap" id="spend-chart-wrap"><canvas id="chart-spend"></canvas></div>
+      <p class="chart-card-sub" id="spend-error-note" style="display:none; color:#d42e2e; margin-top:8px;"></p>
+    </div>
+  </div>
+
+  <footer class="note">Growth Radar - HISPAM · derivado do "Growth Lead Funnel Radar" · escopo restrito a Region = HISPAM (sem filtro de Region na tela) · Fontes: aba "Summarized Data" (leads) e aba "Budget Paid Media HISPAM" (spend, com Main Country) · BoFu Leads por Create Date · Demos/Validated Demos/Amount por First Meeting Date · "Meta Ads" = OTHER_CAMPAIGNS ou PAID_SOCIAL (exceto Drill-Down 1 = LinkedIn) · "LinkedIn Ads" = PAID_SOCIAL com Drill-Down 1 = LinkedIn · Spend de Brazil dentro da aba HISPAM é sempre excluído · Semanas iniciam na segunda-feira (UTC) · Valores já em USD · Período padrão: a partir de 01/04/2026 (Q2)</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ======= CONFIGURATION =======
+  // Google Sheets published-to-web CSV link (Leads / aba "Summarized Data").
+  // Mesma URL/gid do dashboard original — a coluna "Main Country" foi
+  // adicionada na MESMA aba, então não há gid novo para os leads.
+  const LEADS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQDIkmNf5CX0Fdb5EUQ9eaH4MAIZKmB8MO1JMituQyQTXPxRajKJSlwWDhKQ1SvPH9isWVVYi95_s3f/pub?gid=1133370838&single=true&output=csv";
+
+  // Paid Media / Spend — aba NOVA "Budget Paid Media HISPAM" (gid=695716267).
+  // ATENÇÃO: construído trocando o gid da aba antiga (748643656) pelo gid da
+  // aba nova informado por Raphael, assumindo que ambas as abas fazem parte
+  // da mesma planilha publicada. Isso PRECISA ser verificado após o deploy —
+  // se a aba nova não tiver sido publicada individualmente (Arquivo →
+  // Compartilhar → Publicar na Web), este link pode não funcionar e o
+  // dashboard vai cair no banner de erro de spend.
+  const SPEND_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ5t1DVNclAvBYSncpeeRyEYh5nyFmsHg3w5BwRE3W6FO1ULy7ZIk8e2rIyhQiSiUqTR0tzTgJnkYMn/pub?gid=695716267&single=true&output=csv";
+
+  // Region é sempre HISPAM neste dashboard — não há filtro de Region na tela,
+  // mas o filtro é aplicado internamente logo na leitura do CSV de leads.
+  const FIXED_REGION = "HISPAM";
+
+  // Canonicaliza nomes de país para um código ISO2, para poder cruzar a
+  // planilha de leads (nomes em espanhol acentuados, ex. "México", "Perú")
+  // com a planilha de spend, que usa DOIS formatos diferentes:
+  //   - Google Ads HISPAM / LINKEDIN_ADS_HISPAM: nome cheio sem acento (ex. "Mexico", "Peru")
+  //   - META_ADS_CA_HUMAND_LATAM: código ISO2 direto (ex. "MX", "PE")
+  // Os códigos ISO2 do Meta Ads já são a própria chave canônica, então só
+  // precisamos mapear os nomes por extenso (dos leads e do Google/LinkedIn).
+  const COUNTRY_TO_ISO = {
+    // planilha de leads ("Main Country")
+    "Argentina":"AR", "Bolivia":"BO", "Chile":"CL", "Colombia":"CO", "Cuba":"CU",
+    "Ecuador":"EC", "El Salvador":"SV", "Guatemala":"GT", "Honduras":"HN",
+    "México":"MX", "Panama":"PA", "Paraguay":"PY", "Perú":"PE",
+    "Republica Dominicana":"DO", "Uruguay":"UY", "Venezuela":"VE",
+    // planilha de spend (Google Ads HISPAM / LINKEDIN_ADS_HISPAM) — nomes sem acento
+    "Mexico":"MX", "Peru":"PE"
+  };
+
+  // Mapeia o valor bruto de "Nome da conta" (aba de spend nova) para o canal
+  // exibido no gráfico e para o "bucket" de Original Traffic Source usado no
+  // filtro (o mesmo vocabulário do filtro de leads: "Meta Ads"/"LinkedIn Ads"/"PAID_SEARCH").
+  const SPEND_ACCOUNT_MAP = {
+    "Google Ads HISPAM":       { channel:"Google Ads",   sourceBucket:"PAID_SEARCH" },
+    "META_ADS_CA_HUMAND_LATAM":{ channel:"Meta Ads",     sourceBucket:"Meta Ads" },
+    "LINKEDIN_ADS_HISPAM":     { channel:"LinkedIn Ads", sourceBucket:"LinkedIn Ads" }
+  };
+  const CHANNEL_COLORS = { "Google Ads":"#de920c", "Meta Ads":"#496be3", "LinkedIn Ads":"#28c040" };
+  const DEFAULT_START_DATE = "2026-04-01"; // Q2 onward — herdado do dashboard original
+
+  // Lista fixa de opções do filtro de Original Traffic Source (Mudança 02):
+  // "Paid Social" foi substituído por "Meta Ads" e "LinkedIn Ads". As demais
+  // opções continuam como no dashboard original. Qualquer valor bruto extra
+  // que apareça na planilha e não esteja nesta lista também vira sua própria
+  // opção (ver initFromData), então isso nunca "esconde" dado novo.
+  const KNOWN_SOURCES = [
+    "AI_REFERRALS","DIRECT_TRAFFIC","EMAIL_MARKETING","LinkedIn Ads","Meta Ads",
+    "OFFLINE","ORGANIC_SEARCH","OTHER_CAMPAIGNS","PAID_SEARCH","REFERRALS","SOCIAL_MEDIA"
+  ];
+
+  // Meta de custo (USD) — única, para HISPAM. Como o filtro de Region não
+  // existe mais nesta tela (é sempre HISPAM), a meta é sempre comparada,
+  // sem precisar checar "exatamente uma região selecionada" como no original.
+  const COST_GOALS = { cpl: 68.82, cpd: 147.68, cpvd: 246.14 };
+
+  const state = {
+    country: new Set(),
+    source: new Set(),
+    drill1: new Set(),
+    startDate: null,
+    endDate: null
+  };
+
+  let RAW = [];
+  let SPEND_RAW = [];
+  let spendLoadError = null;
+  let ALL_COUNTRIES = [], ALL_SOURCES = [], ALL_DRILL1 = [];
+  let chartBofu, chartDemos, chartValidated, chartSpend;
+
+  // ---------- helpers ----------
+  function fmtInt(n){ return n.toLocaleString('pt-BR'); }
+  function fmtMoney(n){ return '$ ' + n.toLocaleString('pt-BR', {maximumFractionDigits:0}); }
+  function fmtPct(n,d){
+    if(!d) return '—';
+    return (100*n/d).toLocaleString('pt-BR',{maximumFractionDigits:1}) + '% do BoFu';
+  }
+  function weekStart(dateStr){
+    const d = new Date(dateStr + 'T00:00:00Z');
+    const day = d.getUTCDay();
+    const diff = (day === 0 ? -6 : 1 - day);
+    d.setUTCDate(d.getUTCDate() + diff);
+    return d.toISOString().slice(0,10);
+  }
+  function addDays(dateStr, days){
+    const d = new Date(dateStr + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate()+days);
+    return d.toISOString().slice(0,10);
+  }
+  function fmtWeekLabel(dateStr){
+    const [y,m,d] = dateStr.split('-');
+    return d + '/' + m;
+  }
+  function excelSerialToISODate(serial){
+    // Google Sheets/Excel serial date (days since 1899-12-30)
+    const utcDays = Math.floor(serial - 25569);
+    const utcMs = utcDays * 86400 * 1000;
+    return new Date(utcMs).toISOString().slice(0,10);
+  }
+  function parseCreateDate(raw){
+    if(!raw) return null;
+    const s = String(raw).trim();
+    if(!s) return null;
+    // Case 1: HubSpot epoch ms timestamp, possivelmente com decimais ("1783054147000.00")
+    const asFloat = parseFloat(s);
+    if(!isNaN(asFloat) && asFloat > 1e11){
+      return new Date(asFloat).toISOString().slice(0,10);
+    }
+    // Case 2: Excel/Sheets serial date puro (raro, número pequeno)
+    if(!isNaN(asFloat) && asFloat > 20000 && asFloat < 90000){
+      return excelSerialToISODate(asFloat);
+    }
+    // Case 3: string de data tipo "7/3/2026" ou "2026-07-03"
+    const d = new Date(s);
+    if(!isNaN(d.getTime())) return d.toISOString().slice(0,10);
+    return null;
+  }
+  function parseAmount(raw){
+    if(raw === undefined || raw === null) return null;
+    const s = String(raw).trim();
+    if(!s || s === '(No Value)') return null;
+    const n = parseFloat(s.replace(/[^0-9.\-]/g, ''));
+    return isNaN(n) ? null : n;
+  }
+
+  // Classifica cada lead num (ou dois) "buckets" de Original Traffic Source
+  // para o filtro, aplicando a Mudança 02:
+  //   Meta Ads     = (OTHER_CAMPAIGNS OU PAID_SOCIAL) E Drill-Down1 != "LinkedIn"
+  //   LinkedIn Ads = PAID_SOCIAL E Drill-Down1 == "LinkedIn"
+  // OTHER_CAMPAIGNS continua existindo como opção própria também — uma linha
+  // OTHER_CAMPAIGNS aparece tanto em "OTHER_CAMPAIGNS" quanto em "Meta Ads"
+  // (overlap intencional, conforme especificado; nenhuma linha observada até
+  // agora tem esse valor, mas a regra fica pronta pra quando aparecer).
+  function sourceBucketsFor(rawSource, rawDrill1){
+    if(rawSource === 'PAID_SOCIAL'){
+      return rawDrill1 === 'LinkedIn' ? ['LinkedIn Ads'] : ['Meta Ads'];
+    }
+    if(rawSource === 'OTHER_CAMPAIGNS'){
+      return ['OTHER_CAMPAIGNS','Meta Ads'];
+    }
+    return [rawSource];
+  }
+
+  // ---------- data loading ----------
+  function showError(msg){
+    const banner = document.getElementById('error-banner');
+    document.getElementById('error-detail').textContent = msg;
+    banner.classList.add('show');
+  }
+  function hideLoading(){
+    const overlay = document.getElementById('loading-overlay');
+    if(overlay) overlay.style.display = 'none';
+  }
+  function setLastUpdated(){
+    const now = new Date();
+    document.getElementById('last-updated-label').textContent =
+      'Atualizado às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+  }
+
+  async function loadLeadsData(){
+    const res = await fetch(LEADS_CSV_URL, {cache: 'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const csvText = await res.text();
+    const parsed = Papa.parse(csvText, {header: true, skipEmptyLines: true});
+    if(parsed.errors && parsed.errors.length){
+      console.warn('CSV parse warnings (leads):', parsed.errors.slice(0,3));
+    }
+    const rows = parsed.data;
+    const out = [];
+    for(const r of rows){
+      // Mudança 00: escopo restrito a Region = HISPAM (filtro interno, sem
+      // controle na tela). A planilha traz todas as regiões.
+      const region = (r['Region'] || '').trim();
+      if(region !== FIXED_REGION) continue;
+
+      const dateRaw = (r['Create Date'] !== undefined && r['Create Date'] !== '')
+        ? r['Create Date']
+        : r['Create Date - Format'];
+      const dateISO = parseCreateDate(dateRaw);
+      if(!dateISO) continue;
+
+      const rawSource = (r['Original Traffic Source'] || '').trim() || 'Unknown';
+      const drill1 = (r['Original Traffic Source Drill-Down 1'] || '').trim() || 'Unknown';
+      let dealStage = (r['Deal Stage Format'] || '').trim();
+      if(dealStage === '(No Value)' || dealStage === '') dealStage = null;
+      const amount = parseAmount(r['Amount']);
+
+      // Lead Status: usado para classificar Demos (qualquer valor preenchido)
+      // e Validated Demos (valor exatamente "Validated").
+      let leadStatus = (r['Lead Status'] || '').trim();
+      if(leadStatus === '(No Value)') leadStatus = '';
+
+      // First Meeting Date Format: data usada para contabilizar Demos/Validated Demos
+      // (em vez da Create Date, usada só para BoFu Leads).
+      const firstMeetingDateISO = parseCreateDate(r['First Meeting Date Format']);
+
+      // Mudança 01: Main Country, coluna nova na aba "Summarized Data".
+      const country = (r['Main Country'] || '').trim() || 'Unknown';
+
+      out.push({
+        date: dateISO,
+        meetingDate: firstMeetingDateISO,
+        source: rawSource,
+        drill1: drill1,
+        sourceBuckets: sourceBucketsFor(rawSource, drill1),
+        dealStage: dealStage,
+        amount: amount,
+        leadStatus: leadStatus,
+        country: country
+      });
+    }
+    if(out.length === 0) throw new Error('Nenhuma linha HISPAM válida encontrada no CSV de leads.');
+    return out;
+  }
+
+  async function loadSpendData(){
+    const res = await fetch(SPEND_CSV_URL, {cache: 'no-store'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const csvText = await res.text();
+    const parsed = Papa.parse(csvText, {header: true, skipEmptyLines: true});
+    if(parsed.errors && parsed.errors.length){
+      console.warn('CSV parse warnings (spend):', parsed.errors.slice(0,3));
+    }
+    const rows = parsed.data;
+    const out = [];
+    for(const r of rows){
+      const dateISO = parseCreateDate(r['Day']);
+      if(!dateISO) continue;
+      const accountKey = (r['Nome da conta'] || '').trim();
+      const map = SPEND_ACCOUNT_MAP[accountKey];
+      if(!map) continue; // conta não mapeada, pula em vez de arriscar
+
+      const rawCountry = (r['Main Country'] || '').trim();
+
+      // Decisão do Raphael: spend de "Brazil" dentro da aba HISPAM é sempre
+      // excluído (Brazil não é HISPAM, mesmo aparecendo nessa aba).
+      if(rawCountry.toLowerCase() === 'brazil') continue;
+
+      let countryISO = null;
+      if(accountKey === 'META_ADS_CA_HUMAND_LATAM'){
+        // Meta Ads já publica código ISO2 direto (ex. "MX", "PE"); valores
+        // tipo "unknown" não batem no padrão de 2 letras e viram null.
+        countryISO = /^[A-Za-z]{2}$/.test(rawCountry) ? rawCountry.toUpperCase() : null;
+      } else {
+        countryISO = COUNTRY_TO_ISO[rawCountry] || null;
+      }
+
+      const cost = parseAmount(r['Valor gasto (USD)']);
+      if(cost === null) continue;
+
+      out.push({
+        date: dateISO,
+        channel: map.channel,
+        sourceBucket: map.sourceBucket,
+        country: countryISO, // null = não atribuível a um país específico
+        cost: cost
+      });
+    }
+    if(out.length === 0) throw new Error('Nenhuma linha válida encontrada no CSV de spend.');
+    return out;
+  }
+
+  async function loadAll(){
+    document.getElementById('error-banner').classList.remove('show');
+    document.getElementById('spend-error-note').style.display = 'none';
+    spendLoadError = null;
+
+    const [leadsResult, spendResult] = await Promise.allSettled([loadLeadsData(), loadSpendData()]);
+
+    if(leadsResult.status === 'rejected'){
+      console.error(leadsResult.reason);
+      hideLoading();
+      showError('Detalhe técnico: ' + leadsResult.reason.message + '. Verifique se a aba de leads ainda está publicada em Arquivo → Compartilhar → Publicar na Web (formato CSV) e tente recarregar.');
+      return;
+    }
+    RAW = leadsResult.value;
+
+    if(spendResult.status === 'rejected'){
+      console.error(spendResult.reason);
+      spendLoadError = spendResult.reason.message;
+      SPEND_RAW = [];
+    } else {
+      SPEND_RAW = spendResult.value;
+    }
+
+    initFromData();
+    hideLoading();
+    setLastUpdated();
+  }
+
+  // ---------- multi-select component ----------
+  function buildMultiSelect(key, options, panelId, toggleSelector){
+    const panel = document.getElementById(panelId);
+    panel.innerHTML = '';
+
+    const search = document.createElement('div');
+    search.className = 'ms-search';
+    search.innerHTML = '<input type="text" placeholder="Buscar...">';
+    panel.appendChild(search);
+
+    const actions = document.createElement('div');
+    actions.className = 'ms-actions';
+    actions.innerHTML = '<button data-act="all">Selecionar todos</button><button data-act="none">Limpar</button>';
+    panel.appendChild(actions);
+
+    const list = document.createElement('div');
+    list.className = 'ms-list';
+    panel.appendChild(list);
+
+    function renderList(filterTxt){
+      list.innerHTML = '';
+      const ft = (filterTxt||'').toLowerCase();
+      const filtered = options.filter(o => o.toLowerCase().includes(ft));
+      if(filtered.length === 0){
+        const empty = document.createElement('div');
+        empty.className = 'ms-empty';
+        empty.textContent = 'Nenhum resultado';
+        list.appendChild(empty);
+        return;
+      }
+      filtered.forEach(opt=>{
+        const row = document.createElement('label');
+        row.className = 'ms-option';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = state[key].has(opt);
+        cb.addEventListener('change', ()=>{
+          if(cb.checked) state[key].add(opt); else state[key].delete(opt);
+          updateToggleLabel(key, options, toggleSelector);
+          refresh();
+        });
+        const span = document.createElement('span');
+        span.textContent = opt;
+        row.appendChild(cb);
+        row.appendChild(span);
+        list.appendChild(row);
+      });
+    }
+    renderList('');
+
+    search.querySelector('input').addEventListener('input', (e)=> renderList(e.target.value));
+
+    actions.querySelector('[data-act="all"]').addEventListener('click', ()=>{
+      options.forEach(o=>state[key].add(o));
+      renderList(search.querySelector('input').value);
+      updateToggleLabel(key, options, toggleSelector);
+      refresh();
+    });
+    actions.querySelector('[data-act="none"]').addEventListener('click', ()=>{
+      state[key].clear();
+      renderList(search.querySelector('input').value);
+      updateToggleLabel(key, options, toggleSelector);
+      refresh();
+    });
+
+    updateToggleLabel(key, options, toggleSelector);
+  }
+
+  function updateToggleLabel(key, options, toggleSelector){
+    const btn = document.querySelector(toggleSelector);
+    const chip = document.getElementById('chip-' + key);
+    const n = state[key].size;
+    const label = btn.querySelector('.ms-toggle-label');
+    if(n === options.length || n === 0){
+      label.textContent = 'Todos';
+      chip.textContent = n === 0 ? '0' : options.length;
+    } else {
+      label.textContent = n + ' selecionado(s)';
+      chip.textContent = n;
+    }
+  }
+
+  document.querySelectorAll('.ms-toggle').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const key = btn.getAttribute('data-ms');
+      const panel = document.getElementById('panel-' + key);
+      const isOpen = panel.classList.contains('open');
+      document.querySelectorAll('.ms-panel').forEach(p=>p.classList.remove('open'));
+      if(!isOpen) panel.classList.add('open');
+    });
+  });
+  document.addEventListener('click', ()=>{
+    document.querySelectorAll('.ms-panel').forEach(p=>p.classList.remove('open'));
+  });
+  document.querySelectorAll('.ms-panel').forEach(p=> p.addEventListener('click', e=>e.stopPropagation()));
+
+  const inputStart = document.getElementById('input-start-date');
+  const inputEnd = document.getElementById('input-end-date');
+  inputStart.addEventListener('change', ()=>{ state.startDate = inputStart.value || null; refresh(); });
+  inputEnd.addEventListener('change', ()=>{ state.endDate = inputEnd.value || null; refresh(); });
+
+  document.getElementById('btn-reset').addEventListener('click', ()=>{
+    state.country = new Set(ALL_COUNTRIES);
+    state.source = new Set(ALL_SOURCES);
+    state.drill1 = new Set(ALL_DRILL1);
+    state.startDate = DEFAULT_START_DATE; state.endDate = null;
+    inputStart.value = DEFAULT_START_DATE; inputEnd.value = '';
+    buildMultiSelect('country', ALL_COUNTRIES, 'panel-country', '[data-ms="country"]');
+    buildMultiSelect('source', ALL_SOURCES, 'panel-source', '[data-ms="source"]');
+    buildMultiSelect('drill1', ALL_DRILL1, 'panel-drill1', '[data-ms="drill1"]');
+    refresh();
+  });
+
+  const btnRefresh = document.getElementById('btn-refresh');
+  btnRefresh.addEventListener('click', async ()=>{
+    btnRefresh.classList.add('loading');
+    btnRefresh.disabled = true;
+    await loadAll();
+    btnRefresh.classList.remove('loading');
+    btnRefresh.disabled = false;
+  });
+
+  // ---------- filtering ----------
+  function sourceMatches(bucketsArr){
+    for(let i=0;i<bucketsArr.length;i++){ if(state.source.has(bucketsArr[i])) return true; }
+    return false;
+  }
+
+  // dateField: 'date' = Create Date (BoFu Leads), 'meetingDate' = First Meeting Date (Demos/Validated Demos)
+  function getFilteredByDate(dateField){
+    return RAW.filter(row=>{
+      const date = row[dateField];
+      if(!state.country.has(row.country)) return false;
+      if(!sourceMatches(row.sourceBuckets)) return false;
+      if(!state.drill1.has(row.drill1)) return false;
+      if(!date) return false; // sem data válida nessa coluna -> fora de qualquer recorte por data
+      if(state.startDate && date < state.startDate) return false;
+      if(state.endDate && date > state.endDate) return false;
+      return true;
+    });
+  }
+
+  function getFilteredSpend(){
+    // Converte o filtro de país (nomes brutos da planilha de leads) para o
+    // conjunto de códigos ISO2 equivalente, pra poder comparar com o país
+    // (já canonicalizado) de cada linha de spend.
+    const selectedISO = new Set();
+    state.country.forEach(c => { const iso = COUNTRY_TO_ISO[c]; if(iso) selectedISO.add(iso); });
+    const allCountriesSelected = state.country.size === ALL_COUNTRIES.length;
+
+    return SPEND_RAW.filter(row=>{
+      if(!state.source.has(row.sourceBucket)) return false;
+      if(row.country === null){
+        // Linha de spend sem país atribuível (ex.: "unknown" do Meta Ads).
+        // Só entra quando o filtro de país está no default (todos selecionados);
+        // some assim que o usuário restringe pra um país específico.
+        if(!allCountriesSelected) return false;
+      } else if(!selectedISO.has(row.country)){
+        return false;
+      }
+      if(state.startDate && row.date < state.startDate) return false;
+      if(state.endDate && row.date > state.endDate) return false;
+      return true;
+    });
+  }
+
+  // ---------- charts ----------
+  function makeLineChart(ctx, label, color, costLabel, costColor){
+    return new Chart(ctx, {
+      type:'line',
+      data:{ labels:[], datasets:[
+        {
+          label:label, data:[], borderColor:color, backgroundColor: color + '26',
+          fill:true, tension:0.35, pointRadius:2, pointHoverRadius:5, borderWidth:2.5,
+          yAxisID:'y'
+        },
+        {
+          label:costLabel, data:[], borderColor:costColor, backgroundColor:'transparent',
+          fill:false, tension:0.35, pointRadius:2, pointHoverRadius:5, borderWidth:2,
+          borderDash:[6,3], yAxisID:'y1'
+        }
+      ]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:true, position:'top', align:'end', labels:{ boxWidth:10, boxHeight:10, font:{size:11, family:'Roboto'}, color:'#636271' } },
+          tooltip:{
+            backgroundColor:'#1d204e', padding:10, cornerRadius:8, titleFont:{family:'Roboto'}, bodyFont:{family:'Roboto'},
+            callbacks:{
+              label: (item)=> item.dataset.yAxisID === 'y1'
+                ? (item.dataset.label + ': $' + item.parsed.y.toLocaleString('pt-BR',{maximumFractionDigits:2}))
+                : (item.dataset.label + ': ' + item.parsed.y)
+            }
+          }
+        },
+        scales:{
+          x:{ grid:{display:false}, ticks:{ color:'#79788a', font:{size:11} } },
+          y:{ beginAtZero:true, position:'left', grid:{color:'#eeeef1'}, ticks:{ color:'#79788a', font:{size:11}, precision:0 } },
+          y1:{ beginAtZero:true, position:'right', grid:{display:false}, ticks:{ color:'#79788a', font:{size:11}, callback: v => '$'+v } }
+        },
+        interaction:{ intersect:false, mode:'index' }
+      }
+    });
+  }
+
+  function makeMultiLineChart(ctx, channels){
+    const datasets = channels.map(ch => ({
+      label: ch, data: [], borderColor: CHANNEL_COLORS[ch], backgroundColor: CHANNEL_COLORS[ch] + '1A',
+      fill:false, tension:0.35, pointRadius:2, pointHoverRadius:5, borderWidth:2.5
+    }));
+    return new Chart(ctx, {
+      type:'line',
+      data:{ labels:[], datasets },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:true, position:'top', align:'end', labels:{ boxWidth:10, boxHeight:10, font:{size:11, family:'Roboto'}, color:'#636271' } },
+          tooltip:{ backgroundColor:'#1d204e', padding:10, cornerRadius:8, titleFont:{family:'Roboto'}, bodyFont:{family:'Roboto'},
+            callbacks:{ label: (item)=> item.dataset.label + ': $' + item.parsed.y.toLocaleString('pt-BR',{maximumFractionDigits:0}) }
+          }
+        },
+        scales:{
+          x:{ grid:{display:false}, ticks:{ color:'#79788a', font:{size:11} } },
+          y:{ beginAtZero:true, grid:{color:'#eeeef1'}, ticks:{ color:'#79788a', font:{size:11}, callback: v => '$'+v } }
+        },
+        interaction:{ intersect:false, mode:'index' }
+      }
+    });
+  }
+
+  function buildWeeklySpendSeries(rows, channels){
+    if(rows.length === 0) return {labels:[], series:{}};
+    const dates = rows.map(r=>r.date).sort();
+    const firstWeek = weekStart(dates[0]);
+    const lastWeek = weekStart(dates[dates.length-1]);
+
+    const sums = {}; // { week: { channel: total } }
+    rows.forEach(r=>{
+      const wk = weekStart(r.date);
+      if(!sums[wk]) sums[wk] = {};
+      sums[wk][r.channel] = (sums[wk][r.channel] || 0) + r.cost;
+    });
+
+    const labels = [];
+    const series = {}; channels.forEach(ch => series[ch] = []);
+    let cur = firstWeek;
+    let guard = 0;
+    while(cur <= lastWeek && guard < 500){
+      labels.push(fmtWeekLabel(cur));
+      channels.forEach(ch => series[ch].push((sums[cur] && sums[cur][ch]) || 0));
+      cur = addDays(cur, 7);
+      guard++;
+    }
+    return {labels, series};
+  }
+
+  function computeWeeklySpendMap(spendRows){
+    const sums = {};
+    spendRows.forEach(r=>{
+      const wk = weekStart(r.date);
+      sums[wk] = (sums[wk] || 0) + r.cost;
+    });
+    return sums;
+  }
+
+  function buildWeeklySeries(rows, dateField, spendMap){
+    if(rows.length === 0) return {labels:[], values:[], costs:[]};
+    const dates = rows.map(r=>r[dateField]).sort();
+    const firstWeek = weekStart(dates[0]);
+    const lastWeek = weekStart(dates[dates.length-1]);
+
+    const counts = {};
+    rows.forEach(r=>{
+      const wk = weekStart(r[dateField]);
+      counts[wk] = (counts[wk]||0) + 1;
+    });
+
+    const labels = [];
+    const values = [];
+    const costs = [];
+    let cur = firstWeek;
+    let guard = 0;
+    while(cur <= lastWeek && guard < 500){
+      labels.push(fmtWeekLabel(cur));
+      const weekCount = counts[cur] || 0;
+      values.push(weekCount);
+      if(spendMap){
+        const weekSpend = spendMap[cur] || 0;
+        costs.push(weekCount > 0 ? Math.round((weekSpend / weekCount) * 100) / 100 : null);
+      }
+      cur = addDays(cur, 7);
+      guard++;
+    }
+    return {labels, values, costs};
+  }
+
+  function updateGoalBadge(elId, actual, metricKey){
+    const el = document.getElementById(elId);
+    const goal = COST_GOALS[metricKey];
+    if(actual === null || actual === undefined){
+      el.className = 'kpi-goal neutral';
+      el.textContent = 'Meta (HISPAM): ' + fmtMoney(goal) + ' · sem dados suficientes';
+      return;
+    }
+    const diffPct = ((actual - goal) / goal) * 100;
+    const isGood = actual <= goal;
+    el.className = 'kpi-goal ' + (isGood ? 'good' : 'bad');
+    const arrow = isGood ? '▼' : '▲';
+    const diffLabel = (diffPct >= 0 ? '+' : '') + diffPct.toLocaleString('pt-BR',{maximumFractionDigits:1}) + '%';
+    el.innerHTML = '<span class="goal-arrow">' + arrow + '</span> Meta (HISPAM): ' + fmtMoney(goal) + ' (' + diffLabel + ')';
+  }
+
+  function refresh(){
+    const bofuRows = getFilteredByDate('date'); // Create Date
+    const meetingRows = getFilteredByDate('meetingDate'); // First Meeting Date
+    const demoRows = meetingRows.filter(r => r.leadStatus && r.leadStatus !== '');
+    const validatedRows = meetingRows.filter(r => r.leadStatus.toLowerCase() === 'validated');
+
+    document.getElementById('kpi-bofu').textContent = fmtInt(bofuRows.length);
+    document.getElementById('kpi-demos').textContent = fmtInt(demoRows.length);
+    document.getElementById('kpi-validated').textContent = fmtInt(validatedRows.length);
+    document.getElementById('kpi-demos-pct').textContent = fmtPct(demoRows.length, bofuRows.length);
+    document.getElementById('kpi-validated-pct').textContent = fmtPct(validatedRows.length, bofuRows.length);
+
+    const amountSum = meetingRows.reduce((acc,r)=> acc + (r.amount||0), 0);
+    document.getElementById('kpi-amount').textContent = fmtMoney(amountSum);
+
+    // Precisa do spend semanal ANTES de montar os 3 gráficos, pra desenhar a linha de custo neles.
+    const spendFiltered = spendLoadError ? [] : getFilteredSpend();
+    const weeklySpendMap = spendLoadError ? null : computeWeeklySpendMap(spendFiltered);
+
+    const sBofu = buildWeeklySeries(bofuRows, 'date', weeklySpendMap);
+    const sDemos = buildWeeklySeries(demoRows, 'meetingDate', weeklySpendMap);
+    const sValidated = buildWeeklySeries(validatedRows, 'meetingDate', weeklySpendMap);
+
+    chartBofu.data.labels = sBofu.labels;
+    chartBofu.data.datasets[0].data = sBofu.values;
+    chartBofu.data.datasets[1].data = sBofu.costs;
+    chartBofu.update();
+
+    chartDemos.data.labels = sDemos.labels;
+    chartDemos.data.datasets[0].data = sDemos.values;
+    chartDemos.data.datasets[1].data = sDemos.costs;
+    chartDemos.update();
+
+    chartValidated.data.labels = sValidated.labels;
+    chartValidated.data.datasets[0].data = sValidated.values;
+    chartValidated.data.datasets[1].data = sValidated.costs;
+    chartValidated.update();
+
+    // ---- Spend KPIs + chart ----
+    const noteEl = document.getElementById('spend-error-note');
+    if(spendLoadError){
+      noteEl.textContent = 'Não foi possível carregar os dados de investimento: ' + spendLoadError;
+      noteEl.style.display = 'block';
+      document.getElementById('spend-chart-wrap').style.display = 'none';
+      document.getElementById('kpi-spend').textContent = '–';
+      document.getElementById('kpi-cpl').textContent = '–';
+      document.getElementById('kpi-cpd').textContent = '–';
+      document.getElementById('kpi-cpvd').textContent = '–';
+      ['goal-cpl','goal-cpd','goal-cpvd'].forEach(id=>{
+        const el = document.getElementById(id);
+        el.className = 'kpi-goal neutral';
+        el.textContent = '';
+      });
+      return;
+    }
+    noteEl.style.display = 'none';
+    document.getElementById('spend-chart-wrap').style.display = '';
+
+    const spendTotal = spendFiltered.reduce((acc,r)=> acc + r.cost, 0);
+    document.getElementById('kpi-spend').textContent = fmtMoney(spendTotal);
+
+    const cplActual = bofuRows.length ? spendTotal / bofuRows.length : null;
+    const cpdActual = demoRows.length ? spendTotal / demoRows.length : null;
+    const cpvdActual = validatedRows.length ? spendTotal / validatedRows.length : null;
+
+    document.getElementById('kpi-cpl').textContent = cplActual !== null ? fmtMoney(cplActual) : '—';
+    document.getElementById('kpi-cpd').textContent = cpdActual !== null ? fmtMoney(cpdActual) : '—';
+    document.getElementById('kpi-cpvd').textContent = cpvdActual !== null ? fmtMoney(cpvdActual) : '—';
+
+    updateGoalBadge('goal-cpl', cplActual, 'cpl');
+    updateGoalBadge('goal-cpd', cpdActual, 'cpd');
+    updateGoalBadge('goal-cpvd', cpvdActual, 'cpvd');
+
+    const channels = ['Google Ads','Meta Ads','LinkedIn Ads'];
+    const sSpend = buildWeeklySpendSeries(spendFiltered, channels);
+    chartSpend.data.labels = sSpend.labels;
+    chartSpend.data.datasets.forEach((ds, i) => { ds.data = sSpend.series[channels[i]]; });
+    chartSpend.update();
+  }
+
+  function initFromData(){
+    ALL_COUNTRIES = [...new Set(RAW.map(r=>r.country))].sort();
+
+    // União da lista fixa (Mudança 02) com qualquer valor bruto extra que
+    // apareça de fato na planilha — assim nunca escondemos um traffic source
+    // novo, mas garantimos que Meta Ads/LinkedIn Ads/OTHER_CAMPAIGNS sempre
+    // aparecem como opção, mesmo com 0 linhas no período atual.
+    const dataSources = new Set();
+    RAW.forEach(r => r.sourceBuckets.forEach(b => dataSources.add(b)));
+    ALL_SOURCES = [...new Set([...KNOWN_SOURCES, ...dataSources])].sort();
+
+    ALL_DRILL1 = [...new Set(RAW.map(r=>r.drill1))].sort();
+
+    state.country = new Set(ALL_COUNTRIES);
+    state.source = new Set(ALL_SOURCES);
+    state.drill1 = new Set(ALL_DRILL1);
+
+    // Default view: Q2 onward, herdado do dashboard original. Ainda editável pelo usuário.
+    if(state.startDate === null && !inputStart.value){
+      state.startDate = DEFAULT_START_DATE;
+      inputStart.value = DEFAULT_START_DATE;
+    }
+
+    const dataDates = RAW.map(r=>r.date).sort();
+    document.getElementById('meta-total-rows').textContent = fmtInt(RAW.length);
+    document.getElementById('meta-date-range').textContent =
+      dataDates[0].split('-').reverse().join('/') + ' – ' + dataDates[dataDates.length-1].split('-').reverse().join('/');
+
+    buildMultiSelect('country', ALL_COUNTRIES, 'panel-country', '[data-ms="country"]');
+    buildMultiSelect('source', ALL_SOURCES, 'panel-source', '[data-ms="source"]');
+    buildMultiSelect('drill1', ALL_DRILL1, 'panel-drill1', '[data-ms="drill1"]');
+
+    if(!chartBofu){
+      chartBofu = makeLineChart(document.getElementById('chart-bofu').getContext('2d'), 'BoFu Leads', '#496be3', 'CPL ($)', '#de920c');
+      chartDemos = makeLineChart(document.getElementById('chart-demos').getContext('2d'), 'Demos', '#3851d8', 'CPD ($)', '#de920c');
+      chartValidated = makeLineChart(document.getElementById('chart-validated').getContext('2d'), 'Validated Demos', '#1d204e', 'Custo por Validated Demo ($)', '#de920c');
+      chartSpend = makeMultiLineChart(document.getElementById('chart-spend').getContext('2d'), ['Google Ads','Meta Ads','LinkedIn Ads']);
+    }
+
+    refresh();
+  }
+
+  loadAll();
+})();
+</script>
+</body>
+</html>
