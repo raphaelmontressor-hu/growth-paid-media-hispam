@@ -298,12 +298,12 @@
 
     <div class="filter-field">
       <label>Starting Date</label>
-      <input type="date" id="input-start-date">
+      <input type="date" id="input-start-date" min="2026-07-01">
     </div>
 
     <div class="filter-field">
       <label>End Date</label>
-      <input type="date" id="input-end-date">
+      <input type="date" id="input-end-date" min="2026-07-01">
     </div>
 
     <div class="filter-field" id="ff-source">
@@ -469,7 +469,18 @@
     "LINKEDIN_ADS_HISPAM":     { channel:"LinkedIn Ads", sourceBucket:"LinkedIn Ads" }
   };
   const CHANNEL_COLORS = { "Google Ads":"#de920c", "Meta Ads":"#496be3", "LinkedIn Ads":"#28c040" };
-  const DEFAULT_START_DATE = "2026-04-01"; // Q2 onward — herdado do dashboard original
+
+  // A partir de 01/07/2026 é de onde o spend por país (Main Country) passou a
+  // existir na aba nova de spend. Datas anteriores não têm custo atribuível
+  // por país, então o filtro de data trava aqui — tanto no seletor (min= no
+  // <input type="date">) quanto na leitura do valor (clampMinDate), pra
+  // ninguém conseguir digitar manualmente uma data anterior.
+  const MIN_DATE = "2026-07-01";
+  const DEFAULT_START_DATE = MIN_DATE;
+  function clampMinDate(dateStr){
+    if(!dateStr) return dateStr;
+    return dateStr < MIN_DATE ? MIN_DATE : dateStr;
+  }
 
   // Lista fixa de opções do filtro de Original Traffic Source (Mudança 02):
   // "Paid Social" foi substituído por "Meta Ads" e "LinkedIn Ads". As demais
@@ -819,8 +830,18 @@
 
   const inputStart = document.getElementById('input-start-date');
   const inputEnd = document.getElementById('input-end-date');
-  inputStart.addEventListener('change', ()=>{ state.startDate = inputStart.value || null; refresh(); });
-  inputEnd.addEventListener('change', ()=>{ state.endDate = inputEnd.value || null; refresh(); });
+  inputStart.addEventListener('change', ()=>{
+    const clamped = clampMinDate(inputStart.value || null);
+    inputStart.value = clamped || '';
+    state.startDate = clamped;
+    refresh();
+  });
+  inputEnd.addEventListener('change', ()=>{
+    const clamped = clampMinDate(inputEnd.value || null);
+    inputEnd.value = clamped || '';
+    state.endDate = clamped;
+    refresh();
+  });
 
   document.getElementById('btn-reset').addEventListener('click', ()=>{
     state.country = new Set(ALL_COUNTRIES);
@@ -851,13 +872,17 @@
 
   // dateField: 'date' = Create Date (BoFu Leads), 'meetingDate' = First Meeting Date (Demos/Validated Demos)
   function getFilteredByDate(dateField){
+    // MIN_DATE é um piso absoluto, aplicado aqui independente do que estiver
+    // em state.startDate — mesmo que alguém force um valor mais antigo pelo
+    // devtools, a leitura de dado nunca passa disso.
+    const effectiveStart = clampMinDate(state.startDate) || MIN_DATE;
     return RAW.filter(row=>{
       const date = row[dateField];
       if(!state.country.has(row.country)) return false;
       if(!sourceMatches(row.sourceBuckets)) return false;
       if(!state.drill1.has(row.drill1)) return false;
       if(!date) return false; // sem data válida nessa coluna -> fora de qualquer recorte por data
-      if(state.startDate && date < state.startDate) return false;
+      if(date < effectiveStart) return false;
       if(state.endDate && date > state.endDate) return false;
       return true;
     });
@@ -870,6 +895,10 @@
     const selectedISO = new Set();
     state.country.forEach(c => { const iso = COUNTRY_TO_ISO[c]; if(iso) selectedISO.add(iso); });
     const allCountriesSelected = state.country.size === ALL_COUNTRIES.length;
+    // Mesmo piso de MIN_DATE aplicado em getFilteredByDate — spend por país só
+    // existe a partir de 01/07/2026, então trava aqui também, independente do
+    // que estiver em state.startDate.
+    const effectiveStart = clampMinDate(state.startDate) || MIN_DATE;
 
     return SPEND_RAW.filter(row=>{
       if(!state.source.has(row.sourceBucket)) return false;
@@ -881,7 +910,7 @@
       } else if(!selectedISO.has(row.country)){
         return false;
       }
-      if(state.startDate && row.date < state.startDate) return false;
+      if(row.date < effectiveStart) return false;
       if(state.endDate && row.date > state.endDate) return false;
       return true;
     });
