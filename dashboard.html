@@ -358,7 +358,7 @@
     <div class="kpi-card" style="--stage-color:#28c040">
       <p class="kpi-label"><span class="kpi-dot"></span>Deals Won</p>
       <p class="kpi-value" id="kpi-won">–</p>
-      <p class="kpi-sub">Won, Success Red List, Onboarding Churned, Success Churned · por First Meeting Date</p>
+      <p class="kpi-sub" id="kpi-won-sub" data-default="Won, Success Red List, Onboarding Churned, Success Churned · por First Meeting Date">Won, Success Red List, Onboarding Churned, Success Churned · por First Meeting Date</p>
     </div>
     <div class="kpi-card" style="--stage-color:#28c040">
       <p class="kpi-label"><span class="kpi-dot"></span>Won MRR</p>
@@ -622,11 +622,16 @@
 
   // Deal Stages que contam como "Deal Ganho" (comparação sem diferenciar
   // maiúscula/minúscula e ignorando espaços extras).
-  const WON_STAGES = ["Won","Success Red List","Onboarding Churned","Success Churned"];
-  const WON_STAGES_NORM = new Set(WON_STAGES.map(x => x.toLowerCase()));
+  // Tolerante a variações do texto do estágio (ex. "Closed Won", "Won -
+  // Sales Pipeline", maiúscula/minúscula, espaços extras): conta se o valor
+  // normalizado CONTÉM "won" como palavra (sem "lost") ou um dos 3 estágios
+  // pós-venda por nome.
   function isWonStage(stage){
     if(!stage) return false;
-    return WON_STAGES_NORM.has(String(stage).trim().replace(/\s+/g,' ').toLowerCase());
+    const s = String(stage).trim().replace(/\s+/g,' ').toLowerCase();
+    if(s.includes('lost')) return false;
+    return /\bwon\b/.test(s) || s.includes('success red list') ||
+           s.includes('onboarding churned') || s.includes('success churned');
   }
 
   // Tolerante a variações no cabeçalho da planilha (espaço extra digitado à
@@ -1126,6 +1131,18 @@
     // Success Churned, contados por First Meeting Date (mesmo recorte do Amount).
     const wonRows = meetingRows.filter(r => isWonStage(r.dealStage));
     document.getElementById('kpi-won').textContent = fmtInt(wonRows.length);
+    // Diagnóstico: se não achou nenhum deal won, mostra quais estágios existem
+    // nos dados filtrados (ajuda a descobrir se o nome do estágio é diferente).
+    (function(){
+      const el = document.getElementById('kpi-won-sub');
+      if(!el) return;
+      if(wonRows.length > 0){ el.textContent = el.dataset.default; return; }
+      const cnt = {};
+      meetingRows.forEach(r => { const k = r.dealStage || '(vazio)'; cnt[k] = (cnt[k]||0)+1; });
+      const top = Object.entries(cnt).sort((x,y)=>y[1]-x[1]).slice(0,6).map(e=>e[0]+' ('+e[1]+')').join(', ');
+      console.log('Deal Stages nos dados filtrados:', cnt);
+      el.textContent = 'Nenhum encontrado. Stages nos dados: ' + (top || 'nenhum');
+    })();
     document.getElementById('kpi-won-amount').textContent = fmtMoney(wonRows.reduce((acc,r)=> acc + (r.amount||0), 0));
 
     // Precisa do spend semanal ANTES de montar os 3 gráficos, pra desenhar a linha de custo neles.
