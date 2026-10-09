@@ -144,6 +144,7 @@
   .kpi-row{
     display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px;
   }
+  .kpi-row-top{ margin-bottom:16px; }
   .kpi-card{
     background:#fff; border-radius:var(--radius-l); padding:20px 22px;
     box-shadow:var(--shadow-4dp); position:relative; overflow:hidden;
@@ -294,6 +295,7 @@
       <label>Main Country</label>
       <button class="ms-toggle" data-ms="country"><span class="ms-toggle-label">Todos</span><span class="count-chip" id="chip-country"></span></button>
       <div class="ms-panel" id="panel-country"></div>
+      <small id="country-warning" style="display:none;color:#d42e2e;font-size:11px;margin-top:4px;"></small>
     </div>
 
     <div class="filter-field">
@@ -329,7 +331,7 @@
     <div class="fs-item"><span class="fs-dot" style="background:#1d204e"></span> Validated Demo — Lead Status = "Validated"</div>
   </div>
 
-  <div class="kpi-row">
+  <div class="kpi-row kpi-row-top">
     <div class="kpi-card" style="--stage-color:#9db8f3">
       <p class="kpi-label"><span class="kpi-dot"></span>BoFu Leads</p>
       <p class="kpi-value" id="kpi-bofu">–</p>
@@ -349,6 +351,19 @@
       <p class="kpi-label"><span class="kpi-dot"></span>Amount</p>
       <p class="kpi-value" id="kpi-amount">–</p>
       <p class="kpi-sub">Por First Meeting Date, no período filtrado</p>
+    </div>
+  </div>
+
+  <div class="kpi-row kpi-row-won">
+    <div class="kpi-card" style="--stage-color:#28c040">
+      <p class="kpi-label"><span class="kpi-dot"></span>Deals Won</p>
+      <p class="kpi-value" id="kpi-won">–</p>
+      <p class="kpi-sub">Won, Success Red List, Onboarding Churned, Success Churned · por First Meeting Date</p>
+    </div>
+    <div class="kpi-card" style="--stage-color:#28c040">
+      <p class="kpi-label"><span class="kpi-dot"></span>Won MRR</p>
+      <p class="kpi-value" id="kpi-won-amount">–</p>
+      <p class="kpi-sub">Soma do Amount dos Deals Won, por First Meeting Date</p>
     </div>
   </div>
 
@@ -417,7 +432,7 @@
     </div>
   </div>
 
-  <footer class="note">Growth Radar - HISPAM · derivado do "Growth Lead Funnel Radar" · escopo restrito a Region = HISPAM (sem filtro de Region na tela) · Fontes: aba "Summarized Data" (leads) e aba "Budget Paid Media HISPAM" (spend, com Main Country) · BoFu Leads por Create Date · Demos/Validated Demos/Amount por First Meeting Date · "Meta Ads" = OTHER_CAMPAIGNS ou PAID_SOCIAL (exceto Drill-Down 1 = LinkedIn) · "LinkedIn Ads" = PAID_SOCIAL com Drill-Down 1 = LinkedIn · Spend de Brazil dentro da aba HISPAM é sempre excluído · Semanas iniciam na segunda-feira (UTC) · Valores já em USD · Período padrão: a partir de 01/04/2026 (Q2)</footer>
+  <footer class="note">Growth Radar - HISPAM · derivado do "Growth Lead Funnel Radar" · escopo restrito a Region = HISPAM (sem filtro de Region na tela) · Fontes: aba "Summarized Data" (leads) e aba de spend por país (gid 684897558; somente region = LATAM, custo em cost_usd) · BoFu Leads por Create Date · Demos/Validated Demos/Amount por First Meeting Date · "Meta Ads" = OTHER_CAMPAIGNS ou PAID_SOCIAL (exceto Drill-Down 1 = LinkedIn) · "LinkedIn Ads" = PAID_SOCIAL com Drill-Down 1 = LinkedIn · Spend do Brasil é sempre excluído · Deals Won = Deal Stage Won, Success Red List, Onboarding Churned ou Success Churned (por First Meeting Date) · Semanas iniciam na segunda-feira (UTC) · Valores já em USD · Período padrão: a partir de 01/07/2026</footer>
 </div>
 
 <script>
@@ -430,14 +445,14 @@
   // adicionada na MESMA aba, então não há gid novo para os leads.
   const LEADS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQDIkmNf5CX0Fdb5EUQ9eaH4MAIZKmB8MO1JMituQyQTXPxRajKJSlwWDhKQ1SvPH9isWVVYi95_s3f/pub?gid=1133370838&single=true&output=csv";
 
-  // Paid Media / Spend — aba NOVA "Budget Paid Media HISPAM" (gid=695716267).
-  // ATENÇÃO: construído trocando o gid da aba antiga (748643656) pelo gid da
-  // aba nova informado por Raphael, assumindo que ambas as abas fazem parte
-  // da mesma planilha publicada. Isso PRECISA ser verificado após o deploy —
-  // se a aba nova não tiver sido publicada individualmente (Arquivo →
-  // Compartilhar → Publicar na Web), este link pode não funcionar e o
-  // dashboard vai cair no banner de erro de spend.
-  const SPEND_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ5t1DVNclAvBYSncpeeRyEYh5nyFmsHg3w5BwRE3W6FO1ULy7ZIk8e2rIyhQiSiUqTR0tzTgJnkYMn/pub?gid=695716267&single=true&output=csv";
+  // Paid Media / Spend — aba (gid=684897558) com colunas:
+  //   date | platform (B) | account_id | account_name | region (E) | country (F, ISO2) |
+  //   currency | cost_original | fx_rate | cost_usd (J) | row_key | fetched_at
+  // Só entram linhas com region = LATAM (BRAZIL e EMEA são ignorados) e,
+  // por decisão do Raphael, spend de Brasil (country = BR) é sempre excluído.
+  // O link usa o mesmo documento publicado; a aba precisa estar publicada
+  // na web (Arquivo → Compartilhar → Publicar na Web) em formato CSV.
+  const SPEND_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ5t1DVNclAvBYSncpeeRyEYh5nyFmsHg3w5BwRE3W6FO1ULy7ZIk8e2rIyhQiSiUqTR0tzTgJnkYMn/pub?gid=684897558&single=true&output=csv";
 
   // Region é sempre HISPAM neste dashboard — não há filtro de Region na tela,
   // mas o filtro é aplicado internamente logo na leitura do CSV de leads.
@@ -460,14 +475,19 @@
     "Mexico":"MX", "Peru":"PE"
   };
 
-  // Mapeia o valor bruto de "Nome da conta" (aba de spend nova) para o canal
+  // Mapeia o valor bruto de "platform" (coluna B da aba de spend) para o canal
   // exibido no gráfico e para o "bucket" de Original Traffic Source usado no
   // filtro (o mesmo vocabulário do filtro de leads: "Meta Ads"/"LinkedIn Ads"/"PAID_SEARCH").
-  const SPEND_ACCOUNT_MAP = {
-    "Google Ads HISPAM":       { channel:"Google Ads",   sourceBucket:"PAID_SEARCH" },
-    "META_ADS_CA_HUMAND_LATAM":{ channel:"Meta Ads",     sourceBucket:"Meta Ads" },
-    "LINKEDIN_ADS_HISPAM":     { channel:"LinkedIn Ads", sourceBucket:"LinkedIn Ads" }
+  const SPEND_PLATFORM_MAP = {
+    "GOOGLE_COUNTRY":   { channel:"Google Ads",   sourceBucket:"PAID_SEARCH" },
+    "META_COUNTRY":     { channel:"Meta Ads",     sourceBucket:"Meta Ads" },
+    "LINKEDIN_COUNTRY": { channel:"LinkedIn Ads", sourceBucket:"LinkedIn Ads" }
   };
+  const SPEND_REGION = "LATAM";
+  // ISO2 conhecidos (os mesmos países dos leads). Qualquer outro código
+  // (UNKNOWN, UNATTRIBUTED, NO_COUNTRY_DATA, ES, US...) vira country=null:
+  // conta só quando todos os países estão selecionados.
+  const KNOWN_ISO = new Set(Object.values(COUNTRY_TO_ISO));
   const CHANNEL_COLORS = { "Google Ads":"#de920c", "Meta Ads":"#496be3", "LinkedIn Ads":"#28c040" };
 
   // A partir de 01/07/2026 é de onde o spend por país (Main Country) passou a
@@ -600,6 +620,31 @@
       'Atualizado às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
   }
 
+  // Deal Stages que contam como "Deal Ganho" (comparação sem diferenciar
+  // maiúscula/minúscula e ignorando espaços extras).
+  const WON_STAGES = ["Won","Success Red List","Onboarding Churned","Success Churned"];
+  const WON_STAGES_NORM = new Set(WON_STAGES.map(x => x.toLowerCase()));
+  function isWonStage(stage){
+    if(!stage) return false;
+    return WON_STAGES_NORM.has(String(stage).trim().replace(/\s+/g,' ').toLowerCase());
+  }
+
+  // Tolerante a variações no cabeçalho da planilha (espaço extra digitado à
+  // mão, maiúscula/minúscula diferente, etc.) — sem isso, uma coluna nova
+  // como "Main Country" pode não bater com a chave exata esperada no código
+  // e todo mundo cai silenciosamente em "Unknown" (o que faz o filtro
+  // parecer ter só 1 país). Casa por nome normalizado (trim + minúsculas +
+  // espaços colapsados) em vez de string exata.
+  function makeRowGetter(fields){
+    const norm = s => String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+    const map = {};
+    (fields||[]).forEach(f => { map[norm(f)] = f; });
+    return function(row, name){
+      const real = map[norm(name)];
+      return real !== undefined ? row[real] : undefined;
+    };
+  }
+
   async function loadLeadsData(){
     const res = await fetch(LEADS_CSV_URL, {cache: 'no-store'});
     if(!res.ok) throw new Error('HTTP ' + res.status);
@@ -608,37 +653,38 @@
     if(parsed.errors && parsed.errors.length){
       console.warn('CSV parse warnings (leads):', parsed.errors.slice(0,3));
     }
+    const get = makeRowGetter(parsed.meta && parsed.meta.fields);
     const rows = parsed.data;
     const out = [];
     for(const r of rows){
       // Mudança 00: escopo restrito a Region = HISPAM (filtro interno, sem
       // controle na tela). A planilha traz todas as regiões.
-      const region = (r['Region'] || '').trim();
+      const region = (get(r,'Region') || '').trim();
       if(region !== FIXED_REGION) continue;
 
-      const dateRaw = (r['Create Date'] !== undefined && r['Create Date'] !== '')
-        ? r['Create Date']
-        : r['Create Date - Format'];
+      const dateRaw = (get(r,'Create Date') !== undefined && get(r,'Create Date') !== '')
+        ? get(r,'Create Date')
+        : get(r,'Create Date - Format');
       const dateISO = parseCreateDate(dateRaw);
       if(!dateISO) continue;
 
-      const rawSource = (r['Original Traffic Source'] || '').trim() || 'Unknown';
-      const drill1 = (r['Original Traffic Source Drill-Down 1'] || '').trim() || 'Unknown';
-      let dealStage = (r['Deal Stage Format'] || '').trim();
+      const rawSource = (get(r,'Original Traffic Source') || '').trim() || 'Unknown';
+      const drill1 = (get(r,'Original Traffic Source Drill-Down 1') || '').trim() || 'Unknown';
+      let dealStage = (get(r,'Deal Stage Format') || '').trim();
       if(dealStage === '(No Value)' || dealStage === '') dealStage = null;
-      const amount = parseAmount(r['Amount']);
+      const amount = parseAmount(get(r,'Amount'));
 
       // Lead Status: usado para classificar Demos (qualquer valor preenchido)
       // e Validated Demos (valor exatamente "Validated").
-      let leadStatus = (r['Lead Status'] || '').trim();
+      let leadStatus = (get(r,'Lead Status') || '').trim();
       if(leadStatus === '(No Value)') leadStatus = '';
 
       // First Meeting Date Format: data usada para contabilizar Demos/Validated Demos
       // (em vez da Create Date, usada só para BoFu Leads).
-      const firstMeetingDateISO = parseCreateDate(r['First Meeting Date Format']);
+      const firstMeetingDateISO = parseCreateDate(get(r,'First Meeting Date Format'));
 
       // Mudança 01: Main Country, coluna nova na aba "Summarized Data".
-      const country = (r['Main Country'] || '').trim() || 'Unknown';
+      const country = (get(r,'Main Country') || '').trim() || 'Unknown';
 
       out.push({
         date: dateISO,
@@ -664,31 +710,30 @@
     if(parsed.errors && parsed.errors.length){
       console.warn('CSV parse warnings (spend):', parsed.errors.slice(0,3));
     }
+    const get = makeRowGetter(parsed.meta && parsed.meta.fields);
     const rows = parsed.data;
     const out = [];
     for(const r of rows){
-      const dateISO = parseCreateDate(r['Day']);
+      const dateISO = parseCreateDate(get(r,'date'));
       if(!dateISO) continue;
-      const accountKey = (r['Nome da conta'] || '').trim();
-      const map = SPEND_ACCOUNT_MAP[accountKey];
-      if(!map) continue; // conta não mapeada, pula em vez de arriscar
+      const platformKey = (get(r,'platform') || '').trim().toUpperCase();
+      const map = SPEND_PLATFORM_MAP[platformKey];
+      if(!map) continue; // plataforma não mapeada, pula em vez de arriscar
 
-      const rawCountry = (r['Main Country'] || '').trim();
+      // Somente região LATAM (ignora BRAZIL, EMEA etc.)
+      const region = (get(r,'region') || '').trim().toUpperCase();
+      if(region !== SPEND_REGION) continue;
 
-      // Decisão do Raphael: spend de "Brazil" dentro da aba HISPAM é sempre
-      // excluído (Brazil não é HISPAM, mesmo aparecendo nessa aba).
-      if(rawCountry.toLowerCase() === 'brazil') continue;
+      const rawCountry = (get(r,'country') || '').trim().toUpperCase();
 
-      let countryISO = null;
-      if(accountKey === 'META_ADS_CA_HUMAND_LATAM'){
-        // Meta Ads já publica código ISO2 direto (ex. "MX", "PE"); valores
-        // tipo "unknown" não batem no padrão de 2 letras e viram null.
-        countryISO = /^[A-Za-z]{2}$/.test(rawCountry) ? rawCountry.toUpperCase() : null;
-      } else {
-        countryISO = COUNTRY_TO_ISO[rawCountry] || null;
-      }
+      // Decisão do Raphael: spend do Brasil é sempre excluído, mesmo que
+      // apareça dentro de uma linha de região LATAM.
+      if(rawCountry === 'BR') continue;
 
-      const cost = parseAmount(r['Valor gasto (USD)']);
+      // ISO2 conhecido → país; qualquer outro valor → null (sem país atribuível).
+      const countryISO = KNOWN_ISO.has(rawCountry) ? rawCountry : null;
+
+      const cost = parseAmount(get(r,'cost_usd'));
       if(cost === null) continue;
 
       out.push({
@@ -1077,6 +1122,12 @@
     const amountSum = meetingRows.reduce((acc,r)=> acc + (r.amount||0), 0);
     document.getElementById('kpi-amount').textContent = fmtMoney(amountSum);
 
+    // Deals Won: Deal Stage em Won / Success Red List / Onboarding Churned /
+    // Success Churned, contados por First Meeting Date (mesmo recorte do Amount).
+    const wonRows = meetingRows.filter(r => isWonStage(r.dealStage));
+    document.getElementById('kpi-won').textContent = fmtInt(wonRows.length);
+    document.getElementById('kpi-won-amount').textContent = fmtMoney(wonRows.reduce((acc,r)=> acc + (r.amount||0), 0));
+
     // Precisa do spend semanal ANTES de montar os 3 gráficos, pra desenhar a linha de custo neles.
     const spendFiltered = spendLoadError ? [] : getFilteredSpend();
     const weeklySpendMap = spendLoadError ? null : computeWeeklySpendMap(spendFiltered);
@@ -1144,6 +1195,18 @@
 
   function initFromData(){
     ALL_COUNTRIES = [...new Set(RAW.map(r=>r.country))].sort();
+
+    // Aviso defensivo: se só apareceu "Unknown" (ou 1 valor só), é sinal forte
+    // de que a coluna "Main Country" não está sendo lida corretamente da
+    // planilha (cabeçalho renomeado/com espaço extra, ou publicação
+    // desatualizada) — não que só exista 1 país nos dados HISPAM de verdade.
+    const countryWarnEl = document.getElementById('country-warning');
+    if(ALL_COUNTRIES.length <= 1){
+      countryWarnEl.textContent = 'Só encontrei ' + (ALL_COUNTRIES[0] === 'Unknown' ? 'valores vazios' : ('"' + ALL_COUNTRIES[0] + '"')) + ' na coluna Main Country. Confira se o cabeçalho na planilha está exatamente "Main Country" e se a aba está publicada com a versão mais recente (Arquivo → Compartilhar → Publicar na Web → marque "Republicar automaticamente quando houver alterações").';
+      countryWarnEl.style.display = 'block';
+    } else {
+      countryWarnEl.style.display = 'none';
+    }
 
     // União da lista fixa (Mudança 02) com qualquer valor bruto extra que
     // apareça de fato na planilha — assim nunca escondemos um traffic source
