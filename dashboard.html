@@ -108,6 +108,7 @@
     flex-direction:column; overflow:hidden;
   }
   .ms-panel.open{ display:flex; }
+  #panel-drill2{ left:auto; right:0; }
   .ms-search{
     padding:10px; border-bottom:1px solid var(--grey-100);
   }
@@ -320,6 +321,13 @@
       <div class="ms-panel" id="panel-drill1"></div>
     </div>
 
+    <div class="filter-field" id="ff-drill2">
+      <label>Traffic Source Drill-Down 2</label>
+      <button class="ms-toggle" data-ms="drill2"><span class="ms-toggle-label">Todos</span><span class="count-chip" id="chip-drill2"></span></button>
+      <div class="ms-panel" id="panel-drill2"></div>
+      <small id="drill2-warning" style="display:none;color:#d42e2e;font-size:11px;margin-top:4px;"></small>
+    </div>
+
     <button class="filter-reset" id="btn-reset">Limpar filtros</button>
   </div>
 
@@ -432,7 +440,7 @@
     </div>
   </div>
 
-  <footer class="note">Growth Radar - HISPAM · derivado do "Growth Lead Funnel Radar" · escopo restrito a Region = HISPAM (sem filtro de Region na tela) · Fontes: aba "Summarized Data" (leads) e aba de spend por país (gid 684897558; somente region = LATAM, custo em cost_usd) · BoFu Leads por Create Date · Demos/Validated Demos/Amount por First Meeting Date · "Meta Ads" = OTHER_CAMPAIGNS ou PAID_SOCIAL (exceto Drill-Down 1 = LinkedIn) · "LinkedIn Ads" = PAID_SOCIAL com Drill-Down 1 = LinkedIn · Spend do Brasil é sempre excluído · Deals Won = Deal Stage Won, Success Red List, Onboarding Churned ou Success Churned (por First Meeting Date) · Semanas iniciam na segunda-feira (UTC) · Valores já em USD · Período padrão: a partir de 01/07/2026</footer>
+  <footer class="note">Growth Radar - HISPAM · derivado do "Growth Lead Funnel Radar" · escopo restrito a Region = HISPAM (sem filtro de Region na tela) · Fontes: aba "Summarized Data" (leads) e aba de spend por país (gid 684897558; somente region = LATAM, custo em cost_usd) · BoFu Leads por Create Date · Demos/Validated Demos/Amount por First Meeting Date · "Meta Ads" = OTHER_CAMPAIGNS ou PAID_SOCIAL (exceto Drill-Down 1 = LinkedIn) · "LinkedIn Ads" = PAID_SOCIAL com Drill-Down 1 = LinkedIn · Spend do Brasil é sempre excluído · Deals Won = Deal Stage Won, Success Red List, Onboarding Churned ou Success Churned (por First Meeting Date) · Filtros de Drill-Down 1 e 2 afetam só os leads (o spend não tem esse nível de detalhe) · Semanas iniciam na segunda-feira (UTC) · Valores já em USD · Período padrão: a partir de 01/07/2026</footer>
 </div>
 
 <script>
@@ -521,6 +529,7 @@
     country: new Set(),
     source: new Set(),
     drill1: new Set(),
+    drill2: new Set(),
     startDate: null,
     endDate: null
   };
@@ -528,7 +537,7 @@
   let RAW = [];
   let SPEND_RAW = [];
   let spendLoadError = null;
-  let ALL_COUNTRIES = [], ALL_SOURCES = [], ALL_DRILL1 = [];
+  let ALL_COUNTRIES = [], ALL_SOURCES = [], ALL_DRILL1 = [], ALL_DRILL2 = [];
   let chartBofu, chartDemos, chartValidated, chartSpend;
 
   // ---------- helpers ----------
@@ -675,6 +684,9 @@
 
       const rawSource = (get(r,'Original Traffic Source') || '').trim() || 'Unknown';
       const drill1 = (get(r,'Original Traffic Source Drill-Down 1') || '').trim() || 'Unknown';
+      let drill2 = (get(r,'Original Traffic Source Drill-Down 2') || '').trim();
+      if(drill2 === '(No Value)') drill2 = '';
+      drill2 = drill2 || 'Unknown';
       let dealStage = (get(r,'Deal Stage Format') || '').trim();
       if(dealStage === '(No Value)' || dealStage === '') dealStage = null;
       const amount = parseAmount(get(r,'Amount'));
@@ -696,6 +708,7 @@
         meetingDate: firstMeetingDateISO,
         source: rawSource,
         drill1: drill1,
+        drill2: drill2,
         sourceBuckets: sourceBucketsFor(rawSource, drill1),
         dealStage: dealStage,
         amount: amount,
@@ -897,11 +910,13 @@
     state.country = new Set(ALL_COUNTRIES);
     state.source = new Set(ALL_SOURCES);
     state.drill1 = new Set(ALL_DRILL1);
+    state.drill2 = new Set(ALL_DRILL2);
     state.startDate = DEFAULT_START_DATE; state.endDate = null;
     inputStart.value = DEFAULT_START_DATE; inputEnd.value = '';
     buildMultiSelect('country', ALL_COUNTRIES, 'panel-country', '[data-ms="country"]');
     buildMultiSelect('source', ALL_SOURCES, 'panel-source', '[data-ms="source"]');
     buildMultiSelect('drill1', ALL_DRILL1, 'panel-drill1', '[data-ms="drill1"]');
+    buildMultiSelect('drill2', ALL_DRILL2, 'panel-drill2', '[data-ms="drill2"]');
     refresh();
   });
 
@@ -931,6 +946,7 @@
       if(!state.country.has(row.country)) return false;
       if(!sourceMatches(row.sourceBuckets)) return false;
       if(!state.drill1.has(row.drill1)) return false;
+      if(!state.drill2.has(row.drill2)) return false;
       if(!date) return false; // sem data válida nessa coluna -> fora de qualquer recorte por data
       if(date < effectiveStart) return false;
       if(state.endDate && date > state.endDate) return false;
@@ -1234,10 +1250,23 @@
     ALL_SOURCES = [...new Set([...KNOWN_SOURCES, ...dataSources])].sort();
 
     ALL_DRILL1 = [...new Set(RAW.map(r=>r.drill1))].sort();
+    ALL_DRILL2 = [...new Set(RAW.map(r=>r.drill2))].sort();
+
+    // Aviso defensivo (mesma lógica do Main Country): se só vier "Unknown",
+    // a coluna "Original Traffic Source Drill-Down 2" provavelmente não está
+    // sendo lida (cabeçalho diferente ou publicação desatualizada).
+    const drill2WarnEl = document.getElementById('drill2-warning');
+    if(ALL_DRILL2.length === 1 && ALL_DRILL2[0] === 'Unknown'){
+      drill2WarnEl.textContent = 'Coluna "Original Traffic Source Drill-Down 2" vazia ou não encontrada. Confira o cabeçalho na aba "Summarized Data" e se a publicação na web está atualizada.';
+      drill2WarnEl.style.display = 'block';
+    } else {
+      drill2WarnEl.style.display = 'none';
+    }
 
     state.country = new Set(ALL_COUNTRIES);
     state.source = new Set(ALL_SOURCES);
     state.drill1 = new Set(ALL_DRILL1);
+    state.drill2 = new Set(ALL_DRILL2);
 
     // Default view: Q2 onward, herdado do dashboard original. Ainda editável pelo usuário.
     if(state.startDate === null && !inputStart.value){
@@ -1253,6 +1282,7 @@
     buildMultiSelect('country', ALL_COUNTRIES, 'panel-country', '[data-ms="country"]');
     buildMultiSelect('source', ALL_SOURCES, 'panel-source', '[data-ms="source"]');
     buildMultiSelect('drill1', ALL_DRILL1, 'panel-drill1', '[data-ms="drill1"]');
+    buildMultiSelect('drill2', ALL_DRILL2, 'panel-drill2', '[data-ms="drill2"]');
 
     if(!chartBofu){
       chartBofu = makeLineChart(document.getElementById('chart-bofu').getContext('2d'), 'BoFu Leads', '#496be3', 'CPL ($)', '#de920c');
