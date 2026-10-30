@@ -108,7 +108,6 @@
     flex-direction:column; overflow:hidden;
   }
   .ms-panel.open{ display:flex; }
-  #panel-drill2{ left:auto; right:0; }
   .ms-search{
     padding:10px; border-bottom:1px solid var(--grey-100);
   }
@@ -145,6 +144,12 @@
   .kpi-row{
     display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px;
   }
+  .audit{ margin:24px 0 8px; background:#fff; border-radius:var(--radius-l); box-shadow:var(--shadow-4dp); padding:14px 20px; font-size:13px; }
+  .audit summary{ cursor:pointer; font-weight:600; }
+  .audit-body table{ border-collapse:collapse; margin:10px 0; }
+  .audit-body th,.audit-body td{ padding:4px 14px; text-align:right; border-bottom:1px solid #eee; }
+  .audit-body th:first-child,.audit-body td:first-child{ text-align:left; }
+  .audit-body p{ margin:6px 0; color:#555; }
   .kpi-row-top{ margin-bottom:16px; }
   .kpi-card{
     background:#fff; border-radius:var(--radius-l); padding:20px 22px;
@@ -301,12 +306,12 @@
 
     <div class="filter-field">
       <label>Starting Date</label>
-      <input type="date" id="input-start-date" min="2026-07-01">
+      <input type="date" id="input-start-date" min="2026-01-01">
     </div>
 
     <div class="filter-field">
       <label>End Date</label>
-      <input type="date" id="input-end-date" min="2026-07-01">
+      <input type="date" id="input-end-date" min="2026-01-01">
     </div>
 
     <div class="filter-field" id="ff-source">
@@ -319,13 +324,6 @@
       <label>Traffic Source Drill-Down 1</label>
       <button class="ms-toggle" data-ms="drill1"><span class="ms-toggle-label">Todos</span><span class="count-chip" id="chip-drill1"></span></button>
       <div class="ms-panel" id="panel-drill1"></div>
-    </div>
-
-    <div class="filter-field" id="ff-drill2">
-      <label>Traffic Source Drill-Down 2</label>
-      <button class="ms-toggle" data-ms="drill2"><span class="ms-toggle-label">Todos</span><span class="count-chip" id="chip-drill2"></span></button>
-      <div class="ms-panel" id="panel-drill2"></div>
-      <small id="drill2-warning" style="display:none;color:#d42e2e;font-size:11px;margin-top:4px;"></small>
     </div>
 
     <button class="filter-reset" id="btn-reset">Limpar filtros</button>
@@ -440,7 +438,12 @@
     </div>
   </div>
 
-  <footer class="note">Growth Radar - HISPAM · derivado do "Growth Lead Funnel Radar" · escopo restrito a Region = HISPAM (sem filtro de Region na tela) · Fontes: aba "Summarized Data" (leads) e aba de spend por país (gid 684897558; somente region = LATAM, custo em cost_usd) · BoFu Leads por Create Date · Demos/Validated Demos/Amount por First Meeting Date · "Meta Ads" = OTHER_CAMPAIGNS ou PAID_SOCIAL (exceto Drill-Down 1 = LinkedIn) · "LinkedIn Ads" = PAID_SOCIAL com Drill-Down 1 = LinkedIn · Spend do Brasil é sempre excluído · Deals Won = Deal Stage Won, Success Red List, Onboarding Churned ou Success Churned (por First Meeting Date) · Filtros de Drill-Down 1 e 2 afetam só os leads (o spend não tem esse nível de detalhe) · Semanas iniciam na segunda-feira (UTC) · Valores já em USD · Período padrão: a partir de 01/07/2026</footer>
+  <details class="audit" id="audit">
+    <summary>Auditoria de dados (leads por mês de Create Date)</summary>
+    <div id="audit-body" class="audit-body">–</div>
+  </details>
+
+  <footer class="note">Growth Radar - HISPAM · derivado do "Growth Lead Funnel Radar" · escopo restrito a Region = HISPAM (sem filtro de Region na tela) · Fontes: aba "Summarized Data" (leads) e aba de spend por país (gid 684897558; somente region = LATAM, custo em cost_usd) · BoFu Leads por Create Date · Demos/Validated Demos/Amount por First Meeting Date · "Meta Ads" = OTHER_CAMPAIGNS ou PAID_SOCIAL (exceto Drill-Down 1 = LinkedIn) · "LinkedIn Ads" = PAID_SOCIAL com Drill-Down 1 = LinkedIn · Spend do Brasil é sempre excluído · Deals Won = Deal Stage Won, Success Red List, Onboarding Churned ou Success Churned (por First Meeting Date) · Semanas iniciam na segunda-feira (UTC) · Valores já em USD · Período padrão: a partir de 01/01/2026 (investimento só existe a partir de 01/07/2026)</footer>
 </div>
 
 <script>
@@ -498,13 +501,16 @@
   const KNOWN_ISO = new Set(Object.values(COUNTRY_TO_ISO));
   const CHANNEL_COLORS = { "Google Ads":"#de920c", "Meta Ads":"#496be3", "LinkedIn Ads":"#28c040" };
 
-  // A partir de 01/07/2026 é de onde o spend por país (Main Country) passou a
-  // existir na aba nova de spend. Datas anteriores não têm custo atribuível
-  // por país, então o filtro de data trava aqui — tanto no seletor (min= no
-  // <input type="date">) quanto na leitura do valor (clampMinDate), pra
-  // ninguém conseguir digitar manualmente uma data anterior.
-  const MIN_DATE = "2026-07-01";
+  // Leads/Demos/Validated Demos/Amount/Deals Won: desde o início do ano
+  // (01/01/2026). O seletor de data (min= no <input type="date">) e a leitura
+  // do valor (clampMinDate) travam aqui, pra ninguém filtrar antes disso.
+  const MIN_DATE = "2026-01-01";
   const DEFAULT_START_DATE = MIN_DATE;
+  // O spend por país (aba de spend) só existe a partir de 01/07/2026. Antes
+  // disso o custo é desconhecido, então CPL/CPD/CPVD e a linha de custo
+  // semanal só consideram períodos a partir desta data (nunca tratamos
+  // "sem spend" como "spend zero").
+  const SPEND_START_DATE = "2026-07-01";
   function clampMinDate(dateStr){
     if(!dateStr) return dateStr;
     return dateStr < MIN_DATE ? MIN_DATE : dateStr;
@@ -529,15 +535,15 @@
     country: new Set(),
     source: new Set(),
     drill1: new Set(),
-    drill2: new Set(),
     startDate: null,
     endDate: null
   };
 
   let RAW = [];
+  let LEADS_AUDIT = null;
   let SPEND_RAW = [];
   let spendLoadError = null;
-  let ALL_COUNTRIES = [], ALL_SOURCES = [], ALL_DRILL1 = [], ALL_DRILL2 = [];
+  let ALL_COUNTRIES = [], ALL_SOURCES = [], ALL_DRILL1 = [];
   let chartBofu, chartDemos, chartValidated, chartSpend;
 
   // ---------- helpers ----------
@@ -670,23 +676,26 @@
     const get = makeRowGetter(parsed.meta && parsed.meta.fields);
     const rows = parsed.data;
     const out = [];
+    LEADS_AUDIT = { totalRows: rows.length, regions: {}, invalidDate: 0, invalidSamples: [], fields: (parsed.meta && parsed.meta.fields) || [] };
     for(const r of rows){
       // Mudança 00: escopo restrito a Region = HISPAM (filtro interno, sem
       // controle na tela). A planilha traz todas as regiões.
       const region = (get(r,'Region') || '').trim();
+      LEADS_AUDIT.regions[region || '(vazio)'] = (LEADS_AUDIT.regions[region || '(vazio)'] || 0) + 1;
       if(region !== FIXED_REGION) continue;
 
       const dateRaw = (get(r,'Create Date') !== undefined && get(r,'Create Date') !== '')
         ? get(r,'Create Date')
         : get(r,'Create Date - Format');
       const dateISO = parseCreateDate(dateRaw);
-      if(!dateISO) continue;
+      if(!dateISO){
+        LEADS_AUDIT.invalidDate++;
+        if(LEADS_AUDIT.invalidSamples.length < 5) LEADS_AUDIT.invalidSamples.push(String(dateRaw));
+        continue;
+      }
 
       const rawSource = (get(r,'Original Traffic Source') || '').trim() || 'Unknown';
       const drill1 = (get(r,'Original Traffic Source Drill-Down 1') || '').trim() || 'Unknown';
-      let drill2 = (get(r,'Original Traffic Source Drill-Down 2') || '').trim();
-      if(drill2 === '(No Value)') drill2 = '';
-      drill2 = drill2 || 'Unknown';
       let dealStage = (get(r,'Deal Stage Format') || '').trim();
       if(dealStage === '(No Value)' || dealStage === '') dealStage = null;
       const amount = parseAmount(get(r,'Amount'));
@@ -708,7 +717,6 @@
         meetingDate: firstMeetingDateISO,
         source: rawSource,
         drill1: drill1,
-        drill2: drill2,
         sourceBuckets: sourceBucketsFor(rawSource, drill1),
         dealStage: dealStage,
         amount: amount,
@@ -910,13 +918,11 @@
     state.country = new Set(ALL_COUNTRIES);
     state.source = new Set(ALL_SOURCES);
     state.drill1 = new Set(ALL_DRILL1);
-    state.drill2 = new Set(ALL_DRILL2);
     state.startDate = DEFAULT_START_DATE; state.endDate = null;
     inputStart.value = DEFAULT_START_DATE; inputEnd.value = '';
     buildMultiSelect('country', ALL_COUNTRIES, 'panel-country', '[data-ms="country"]');
     buildMultiSelect('source', ALL_SOURCES, 'panel-source', '[data-ms="source"]');
     buildMultiSelect('drill1', ALL_DRILL1, 'panel-drill1', '[data-ms="drill1"]');
-    buildMultiSelect('drill2', ALL_DRILL2, 'panel-drill2', '[data-ms="drill2"]');
     refresh();
   });
 
@@ -946,7 +952,6 @@
       if(!state.country.has(row.country)) return false;
       if(!sourceMatches(row.sourceBuckets)) return false;
       if(!state.drill1.has(row.drill1)) return false;
-      if(!state.drill2.has(row.drill2)) return false;
       if(!date) return false; // sem data válida nessa coluna -> fora de qualquer recorte por data
       if(date < effectiveStart) return false;
       if(state.endDate && date > state.endDate) return false;
@@ -1104,7 +1109,7 @@
       values.push(weekCount);
       if(spendMap){
         const weekSpend = spendMap[cur] || 0;
-        costs.push(weekCount > 0 ? Math.round((weekSpend / weekCount) * 100) / 100 : null);
+        costs.push((weekCount > 0 && cur >= SPEND_START_DATE) ? Math.round((weekSpend / weekCount) * 100) / 100 : null);
       }
       cur = addDays(cur, 7);
       guard++;
@@ -1128,7 +1133,30 @@
     el.innerHTML = '<span class="goal-arrow">' + arrow + '</span> Meta (HISPAM): ' + fmtMoney(goal) + ' (' + diffLabel + ')';
   }
 
+  function renderAudit(){
+    const el = document.getElementById('audit-body');
+    if(!el || !LEADS_AUDIT) return;
+    const allM = {}, fltM = {};
+    RAW.forEach(r=>{
+      const m = r.date.slice(0,7);
+      allM[m] = (allM[m]||0)+1;
+      if(state.country.has(r.country) && sourceMatches(r.sourceBuckets) && state.drill1.has(r.drill1)){
+        fltM[m] = (fltM[m]||0)+1;
+      }
+    });
+    const months = Object.keys(allM).sort();
+    const regs = Object.entries(LEADS_AUDIT.regions).sort((a,b)=>b[1]-a[1]).map(e=>e[0]+': '+e[1]).join(' · ');
+    const maxDate = RAW.reduce((m,r)=> r.date > m ? r.date : m, '');
+    let h = '<p>Linhas no CSV publicado: <strong>'+fmtInt(LEADS_AUDIT.totalRows)+'</strong> · HISPAM com data válida: <strong>'+fmtInt(RAW.length)+'</strong> · Create Date mais recente: <strong>'+(maxDate||'–')+'</strong> · Descartadas por data inválida: <strong>'+LEADS_AUDIT.invalidDate+'</strong>'+(LEADS_AUDIT.invalidSamples.length ? ' (ex.: '+LEADS_AUDIT.invalidSamples.join(' | ')+')' : '')+'</p>';
+    h += '<p>Regiões no CSV: '+regs+'</p>';
+    h += '<table><tr><th>Mês (Create Date)</th><th>Todos os HISPAM</th><th>Com filtros de país/fonte/drill-down atuais</th></tr>';
+    months.forEach(m=>{ h += '<tr><td>'+m+'</td><td>'+fmtInt(allM[m])+'</td><td>'+fmtInt(fltM[m]||0)+'</td></tr>'; });
+    h += '</table>';
+    el.innerHTML = h;
+  }
+
   function refresh(){
+    renderAudit();
     const bofuRows = getFilteredByDate('date'); // Create Date
     const meetingRows = getFilteredByDate('meetingDate'); // First Meeting Date
     const demoRows = meetingRows.filter(r => r.leadStatus && r.leadStatus !== '');
@@ -1188,6 +1216,7 @@
     const noteEl = document.getElementById('spend-error-note');
     if(spendLoadError){
       noteEl.textContent = 'Não foi possível carregar os dados de investimento: ' + spendLoadError;
+      noteEl.style.color = '#d42e2e';
       noteEl.style.display = 'block';
       document.getElementById('spend-chart-wrap').style.display = 'none';
       document.getElementById('kpi-spend').textContent = '–';
@@ -1207,9 +1236,20 @@
     const spendTotal = spendFiltered.reduce((acc,r)=> acc + r.cost, 0);
     document.getElementById('kpi-spend').textContent = fmtMoney(spendTotal);
 
-    const cplActual = bofuRows.length ? spendTotal / bofuRows.length : null;
-    const cpdActual = demoRows.length ? spendTotal / demoRows.length : null;
-    const cpvdActual = validatedRows.length ? spendTotal / validatedRows.length : null;
+    // Custos por lead/demo/demo validada: só leads/demos do mesmo período em
+    // que existe spend (>= SPEND_START_DATE), pra não diluir o custo.
+    const nBofuCost = bofuRows.filter(r => r.date >= SPEND_START_DATE).length;
+    const nDemosCost = demoRows.filter(r => r.meetingDate >= SPEND_START_DATE).length;
+    const nValidatedCost = validatedRows.filter(r => r.meetingDate >= SPEND_START_DATE).length;
+    const cplActual = nBofuCost ? spendTotal / nBofuCost : null;
+    const cpdActual = nDemosCost ? spendTotal / nDemosCost : null;
+    const cpvdActual = nValidatedCost ? spendTotal / nValidatedCost : null;
+    const effStartForNote = clampMinDate(state.startDate) || MIN_DATE;
+    if(effStartForNote < SPEND_START_DATE){
+      noteEl.textContent = 'Investimento disponível apenas a partir de 01/07/2026: Spend Total, CPL, CPD, CPVD e a linha de custo consideram só esse período, mesmo com a data inicial anterior.';
+      noteEl.style.color = '#6b7280';
+      noteEl.style.display = 'block';
+    }
 
     document.getElementById('kpi-cpl').textContent = cplActual !== null ? fmtMoney(cplActual) : '—';
     document.getElementById('kpi-cpd').textContent = cpdActual !== null ? fmtMoney(cpdActual) : '—';
@@ -1250,23 +1290,10 @@
     ALL_SOURCES = [...new Set([...KNOWN_SOURCES, ...dataSources])].sort();
 
     ALL_DRILL1 = [...new Set(RAW.map(r=>r.drill1))].sort();
-    ALL_DRILL2 = [...new Set(RAW.map(r=>r.drill2))].sort();
-
-    // Aviso defensivo (mesma lógica do Main Country): se só vier "Unknown",
-    // a coluna "Original Traffic Source Drill-Down 2" provavelmente não está
-    // sendo lida (cabeçalho diferente ou publicação desatualizada).
-    const drill2WarnEl = document.getElementById('drill2-warning');
-    if(ALL_DRILL2.length === 1 && ALL_DRILL2[0] === 'Unknown'){
-      drill2WarnEl.textContent = 'Coluna "Original Traffic Source Drill-Down 2" vazia ou não encontrada. Confira o cabeçalho na aba "Summarized Data" e se a publicação na web está atualizada.';
-      drill2WarnEl.style.display = 'block';
-    } else {
-      drill2WarnEl.style.display = 'none';
-    }
 
     state.country = new Set(ALL_COUNTRIES);
     state.source = new Set(ALL_SOURCES);
     state.drill1 = new Set(ALL_DRILL1);
-    state.drill2 = new Set(ALL_DRILL2);
 
     // Default view: Q2 onward, herdado do dashboard original. Ainda editável pelo usuário.
     if(state.startDate === null && !inputStart.value){
@@ -1282,7 +1309,6 @@
     buildMultiSelect('country', ALL_COUNTRIES, 'panel-country', '[data-ms="country"]');
     buildMultiSelect('source', ALL_SOURCES, 'panel-source', '[data-ms="source"]');
     buildMultiSelect('drill1', ALL_DRILL1, 'panel-drill1', '[data-ms="drill1"]');
-    buildMultiSelect('drill2', ALL_DRILL2, 'panel-drill2', '[data-ms="drill2"]');
 
     if(!chartBofu){
       chartBofu = makeLineChart(document.getElementById('chart-bofu').getContext('2d'), 'BoFu Leads', '#496be3', 'CPL ($)', '#de920c');
