@@ -518,6 +518,34 @@
   // (UNKNOWN, UNATTRIBUTED, NO_COUNTRY_DATA, ES, US...) vira country=null:
   // conta só quando todos os países estão selecionados.
   const KNOWN_ISO = new Set(Object.values(COUNTRY_TO_ISO));
+
+  // País (ISO2) -> Region. É a MESMA tabela do dashboard por região: quando o
+  // país é reconhecido, ele manda (ex.: ES = EMEA, US = NA, BR = Brazil), mesmo
+  // que a linha da planilha venha marcada como LATAM. Só entra aqui o que for HISPAM.
+  // País não reconhecido (UNKNOWN, UNATTRIBUTED...) usa a coluna "region" da planilha.
+  const COUNTRY_REGION = {};
+  (function(){
+    const add = (region, codes) => codes.split(' ').forEach(c => { COUNTRY_REGION[c] = region; });
+    add('Brazil', 'BR');
+    add('NA', 'US CA');
+    add('HISPAM', 'AR BO CL CO CR CU DO EC SV GT HN MX NI PA PY PE PR UY VE BZ GY SR HT JM TT BS BB');
+    add('EMEA',
+      'AL AD AM AT AZ BY BE BA BG HR CY CZ DK EE FI FR GE DE GR HU IS IE IT XK LV LI LT LU MT MD MC ME NL MK NO PL PT RO RU SM RS SK SI ES SE CH TR UA GB UK VA ' +
+      'AE BH IL IQ IR JO KW LB OM PS QA SA SY YE ' +
+      'EG DZ AO BJ BW BF BI CM CV CF TD KM CG CD CI DJ GQ ER SZ ET GA GM GH GN GW KE LS LR LY MG MW ML MR MU MA MZ NA NE NG RW ST SN SC SL SO ZA SS SD TZ TG TN UG ZM ZW');
+  })();
+  function sheetRegionToDash(raw){
+    const t = String(raw||'').trim().toLowerCase();
+    if(!t) return 'Unknown';
+    if(t === 'br' || t.startsWith('brazil') || t.startsWith('brasil')) return 'Brazil';
+    if(t.includes('hispam') || t.includes('latam')) return 'HISPAM';
+    if(t.includes('emea')) return 'EMEA';
+    if(t === 'na' || t === 'noram' || t.includes('north america')) return 'NA';
+    return 'Unknown';
+  }
+  // Auditoria do spend (preenchida em loadSpendData): total por plataforma x região
+  // resultante, e o que foi tirado/colocado em HISPAM por causa do país.
+  let SPEND_AUDIT = null;
   const CHANNEL_COLORS = { "Google Ads":"#de920c", "Meta Ads":"#496be3", "LinkedIn Ads":"#28c040" };
 
   // Leads/Demos/Validated Demos/Amount/Deals Won: desde o início do ano
@@ -780,6 +808,7 @@
     const get = makeRowGetter(parsed.meta && parsed.meta.fields);
     const rows = parsed.data;
     const out = [];
+    SPEND_AUDIT = { byPlatformRegion: {}, movedOut: {}, movedIn: {} };
     for(const r of rows){
       const dateISO = parseCreateDate(get(r,'date'));
       if(!dateISO) continue;
@@ -787,21 +816,31 @@
       const map = SPEND_PLATFORM_MAP[platformKey];
       if(!map) continue; // plataforma não mapeada, pula em vez de arriscar
 
-      // Somente região LATAM (ignora BRAZIL, EMEA etc.)
-      const region = (get(r,'region') || '').trim().toUpperCase();
-      if(region !== SPEND_REGION) continue;
-
-      const rawCountry = (get(r,'country') || '').trim().toUpperCase();
-
-      // Decisão do Raphael: spend do Brasil é sempre excluído, mesmo que
-      // apareça dentro de uma linha de região LATAM.
-      if(rawCountry === 'BR') continue;
-
-      // ISO2 conhecido → país; qualquer outro valor → null (sem país atribuível).
-      const countryISO = KNOWN_ISO.has(rawCountry) ? rawCountry : null;
-
       const cost = parseAmount(get(r,'cost_usd'));
       if(cost === null) continue;
+
+      const rawCountry = (get(r,'country') || '').trim().toUpperCase();
+      const sheetRegion = sheetRegionToDash(get(r,'region'));
+      // Region resultante: o país manda; sem país reconhecido, vale a coluna region.
+      const region = COUNTRY_REGION[rawCountry] || sheetRegion;
+
+      if(dateISO >= MIN_DATE){
+        const k = map.channel + ' | ' + region;
+        SPEND_AUDIT.byPlatformRegion[k] = (SPEND_AUDIT.byPlatformRegion[k] || 0) + cost;
+        if(sheetRegion === 'HISPAM' && region !== 'HISPAM'){
+          const kk = map.channel + ' | ' + rawCountry + ' → ' + region;
+          SPEND_AUDIT.movedOut[kk] = (SPEND_AUDIT.movedOut[kk] || 0) + cost;
+        } else if(sheetRegion !== 'HISPAM' && region === 'HISPAM'){
+          const kk = map.channel + ' | ' + rawCountry + ' (sheet: ' + sheetRegion + ')';
+          SPEND_AUDIT.movedIn[kk] = (SPEND_AUDIT.movedIn[kk] || 0) + cost;
+        }
+      }
+
+      // Este dashboard é HISPAM: só entra o que resultou em HISPAM (Brasil sempre fora).
+      if(region !== 'HISPAM') continue;
+
+      // ISO2 conhecido (países dos leads) → país; qualquer outro valor → null.
+      const countryISO = KNOWN_ISO.has(rawCountry) ? rawCountry : null;
 
       out.push({
         date: dateISO,
@@ -1030,13 +1069,14 @@
 
     return SPEND_RAW.filter(row=>{
       if(!state.source.has(row.sourceBucket)) return false;
-      if(row.country === null){
-        // Linha de spend sem país atribuível (ex.: "unknown" do Meta Ads).
-        // Só entra quando o filtro de país está no default (todos selecionados);
-        // some assim que o usuário restringe pra um país específico.
-        if(!allCountriesSelected) return false;
-      } else if(!selectedISO.has(row.country)){
-        return false;
+      // Com todos os países selecionados (default) não há filtro de país no spend:
+      // entra tudo que é HISPAM, inclusive países que não têm nenhum lead na base
+      // e linhas sem país atribuível (country = null).
+      if(!allCountriesSelected){
+        // Restringiu a países específicos: linhas sem país atribuível saem, e só
+        // ficam os países selecionados.
+        if(row.country === null) return false;
+        if(!selectedISO.has(row.country)) return false;
       }
       if(row.date < effectiveStart) return false;
       if(state.endDate && row.date > state.endDate) return false;
@@ -1212,6 +1252,18 @@
     h += '<table><tr><th>Month (Create Date)</th><th>All HISPAM</th><th>With current country/source/drill-down filters</th></tr>';
     months.forEach(m=>{ h += '<tr><td>'+m+'</td><td>'+fmtInt(allM[m])+'</td><td>'+fmtInt(fltM[m]||0)+'</td></tr>'; });
     h += '</table>';
+    if(SPEND_AUDIT){
+      const fm = v => '$' + Math.round(v).toLocaleString('en-US');
+      const sortedEntries = o => Object.entries(o).sort((a,b)=>b[1]-a[1]);
+      h += '<p style="margin-top:14px"><strong>Spend since ' + fmtDateLong(MIN_DATE) + ' by platform and resulting region (the country decides the region):</strong></p>';
+      h += '<table><tr><th>Platform | Region</th><th>Spend (USD)</th></tr>';
+      sortedEntries(SPEND_AUDIT.byPlatformRegion).forEach(e=>{ h += '<tr><td>'+e[0]+'</td><td>'+fm(e[1])+'</td></tr>'; });
+      h += '</table>';
+      const mo = sortedEntries(SPEND_AUDIT.movedOut).filter(e=>Math.abs(e[1])>=0.005);
+      const mi = sortedEntries(SPEND_AUDIT.movedIn).filter(e=>Math.abs(e[1])>=0.005);
+      h += '<p>Labeled LATAM in the sheet but excluded from HISPAM because the country belongs to another region: ' + (mo.length ? mo.map(e=>e[0]+' '+fm(e[1])).join(' · ') : 'none') + '</p>';
+      h += '<p>Not labeled LATAM in the sheet but counted in HISPAM because the country is HISPAM: ' + (mi.length ? mi.map(e=>e[0]+' '+fm(e[1])).join(' · ') : 'none') + '</p>';
+    }
     el.innerHTML = h;
   }
 
